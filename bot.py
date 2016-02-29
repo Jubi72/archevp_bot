@@ -15,10 +15,18 @@ class archebot:
 
     def setcuroff(self):
         allup = self.bot.getUpdates()
-        self.curoff = allup[-1][u'update_id']
+        self.curoff = allup[-1][u'update_id'] + 1
 
     def handle(self): # example handle
         response = self.bot.getUpdates(offset=self.curoff)
-        for one in response:
-            self.bot.sendMessage(chat_id=one[u'message'][u'from'][u'id'],
-                                 text = "You said " + one[u'message'][u'text'])
+        if response != []:
+            for one in response:
+                self.bot.sendMessage(chat_id=one[u'message'][u'from'][u'id'],
+                                     text = "You said " + one[u'message'][u'text'])
+            self.setcuroff()
+
+if __name__ == "__main__":
+    b = archebot()
+    b.start()
+    while True:
+        b.handle()
