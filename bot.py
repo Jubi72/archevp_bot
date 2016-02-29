@@ -1,4 +1,4 @@
-from pprint import pprint # bessere Druckfunktion für Errors
+﻿from pprint import pprint # bessere Druckfunktion für Errors
 import telepot as tp
 
 class archebot:
@@ -17,5 +17,8 @@ class archebot:
         allup = self.bot.getUpdates()
         self.curoff = allup[-1][u'update_id']
 
-    def handle(self, msg):
-        response = self.bot.getUpdates(offset=curoff)
+    def handle(self): # example handle
+        response = self.bot.getUpdates(offset=self.curoff)
+        for one in response:
+            self.bot.sendMessage(chat_id=one[u'message'][u'from'][u'id'],
+                                 text = "You said " + one[u'message'][u'text'])
