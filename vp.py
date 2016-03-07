@@ -3,6 +3,7 @@ import urllib.request
 import os
 from datetime import datetime
 import time
+from bs4 import BeautifulSoup
 
 VALID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890./ "
 
@@ -302,57 +303,96 @@ class Vp():
         """
         page = urllib.request.urlopen(self.__website\
                 .format(sid=self.__sid)).read().decode("cp1252")
+
+        if (not page):
+            print("failed to load vp")
+            return ([])
+
         entries = []
         
         #TODO: check if the date has changed
+        
+        soup = BeautifulSoup(page)
+        dates = [date.text.split()[-2:] for date in soup.findAll("nobr")[1:]]
+        tables = soup.findAll("table")
+        for i in range(len(tables)):
+            weekday = dates[i][0]
+            date = dates[i][1].replace("(", "").replace(")", "")
+            date = time.strptime(date, "%d.%m.%Y")
+            date = time.strftime("%Y-%m-%d", date)
 
-        page = page[page.index("</p>")+4:] #delete first paragraph
-        for day in (page.split("</table>")[:-1]):
-            date = ""
-            weekday = ""
-            
-            # Locate the date
-            start = 0
-            end = 0
-            for char in day:
-                if (char == "<"):
-                    start += 1
-                    if (date):
-                        break
-                elif (char == ">"):
-                    end += 1
-                elif (start == end):
-                    if (char.strip() != ""):
-                        if (char in "1234567890."):
-                            date += char
+            for row in tables[i].findAll("tr")[1:]:
+                doubleEntry = row.findAll("td")
+                doubleEntry = [doubleEntry[:3], doubleEntry[3:]]
+                for entry in doubleEntry:
+                    #Skip crossed entrys
+                    if (entry[2].findAll("u")):
+                        print("skipped")
+                        continue
+                    else:
+                        #get unformatted text
+                        for i in range(len(entry)):
+                            entry[i] = entry[i].text.strip()
+
+                    # skip emty entries
+                    if (entry[1] == '' and entry[2] == ''):
+                        continue
+
+                    # delete annoying chars
+                    entry[2] = entry[2].replace("\r", "")
+                    entry[2] = entry[2].replace("\n", "")
+                    entry[2] = entry[2].replace("\xa0", "")
+                    while ("  " in entry[2]):
+                        entry[2] = entry[2].replace("  ", " ")
+                    
+                    #get all course/class
+                    if ("+" in entry[1]):
+                        # dublicate this entry to get a entry for each class
+                        grade = entry[1].split("/")[0].strip()
+                        class1 = entry[1].split("/")[1].split("+")[0].strip()
+                        class2 = entry[1].split("/")[1].split("+")[1].strip()
+
+                        lesson = ""
+                        if (len(entry[1].split()) > 1):
+                            lesson = entry[1].split()[-1]
+
+                        entries.append([date, weekday, entry[0],\
+                                grade+"/"+class1, lesson, entry[2]])
+                        entries.append([date, weekday, entry[0],\
+                                grade+"/"+class2, lesson, entry[2]])
+
+                    else:
+                        info = entry[1].split() 
+                        print(info)
+                        grade = ""
+                        lesson = ""
+
+                        if (len(info) == 1):
+                            grade = info[0]
+
+                        elif (len(info) == 2):
+                            grade, lesson = info
+                            if (lesson[0].lower() == "w"):
+                                grade += " " + lesson
+
                         else:
-                            weekday += char
+                            grade = info[0]
+                            lesson = info[1]
+                            for string in info[2:]:
+                                lesson += " "+string
 
-            date = date.split(".")
-            date = "{year}-{month}-{day}"\
-                    .format(year = date[2], month = date[1], day = date[0])
-            wks = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"]
-            for wk in wks:
-                if (wk.lower() in weekday.lower()):
-                    weekday = wk
+                        entries.append([date, weekday, entry[0],\
+                                grade, lesson, entry[2]])
+                        
+        for entry in entries:
+            print(entry)
 
-            curEntry = []
-
-
-            
 
 
 if (__name__ == "__main__"):
     vp = Vp("http://archenhold.de/api/vp.php?sid={sid}",\
-            "eS6aiOHXrJ6NoVS2spANCrfcowyFO5H3",\
+            "",\
             "telegramBot.db")
 
-    #vp.checkUser(1, "")
-    #vp.checkUser(1, "eS6aiOHXrJ6NoVS2spANCrfcowyFO5H3")
-
-    #print(vp.addUserSubjects(2, "test1, test2, test3, test1, h!2"))
-    #print(vp.getUserInfo(1))
-    #print(vp.delUserSubjects(2, "test1, test2"))
-    #print(vp.getUserInfo(1))
     print(vp.getUpdates())
 
