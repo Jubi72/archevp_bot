@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import time
 from bs4 import BeautifulSoup
+import hashlib
 
 VALID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890./ "
 
@@ -19,6 +20,7 @@ class Vp():
         self.__cursor = self.__database.cursor()
         self.__lastChange = "" # date and time, when the last change has happend
         self.__sid = sid
+        self.__websiteHash = ""
         if (createDatabase):
             self.__createDatabase()
 
@@ -53,7 +55,7 @@ class Vp():
                 day CHAR(10),
                 hour INTEGER,
                 course CHAR(10),
-                lesson CHAR(5),
+                lesson CHAR(10),
                 change CHAR(64));
         """
         self.__cursor.execute(sql_command)
@@ -62,8 +64,9 @@ class Vp():
             CREATE TABLE course (
                 userId INTEGER NOT NULL,
                 course CHAR(10) NOT NULL,
+                lessonStart CHAR(10) NOT NULL,
                 FOREIGN KEY(userId) REFERENCES user(userId) ON UPDATE CASCADE,
-                PRIMARY KEY (userId, course));
+                PRIMARY KEY (userId, course, lessonStart));
         """
         self.__cursor.execute(sql_command)
 
@@ -80,17 +83,6 @@ class Vp():
         """
         self.__cursor.execute(sql_command, (userId,))
         return (self.__cursor.fetchone() != None)
-
-    def addUser(self, userId):
-        """
-        Adding a user to the database
-        """
-        sql_command = """
-            INSERT INTO user (userId, joining)
-            VALUES (?, ?)
-        """
-        self.__cursor.execute(sql_command, (userId, datetime.now()))
-        self.__database.commit()
 
 
     def checkUser(self, userId, url):
@@ -123,12 +115,12 @@ class Vp():
             prevUsername = self.__cursor.fetchone()
 
             if (prevUsername == None):
-                print("Authentification successful id="+str(userId)\
+                print("New user authentificated userId="+str(userId)\
                         +" username='"+username+"'")
 
                 sql_command = """
                     INSERT INTO user (userId, username, sid, joining)
-                    VALUES (?, ?, ?, ?, ?) 
+                    VALUES (?, ?, ?, ?) 
                 """
                 self.__cursor.execute(sql_command,\
                         (userId, username, sid, datetime.now()))
@@ -138,7 +130,7 @@ class Vp():
 
             else:
                 prevUsername = prevUsername[0]
-                print("Reauthentification successful id="+str(userId)\
+                print("User reauthentificated id="+str(userId)\
                         +" ('"+prevUsername+"'->'"+username+"')")
                 if (prevUsername != username):
                     sql_command == """
@@ -153,7 +145,7 @@ class Vp():
                         .format(username=username))
 
         else:
-            print("Authentification failed id=" + str(userId)+ " sid='"+sid+"'")
+            print("User authentification failed id=" + str(userId)+ " sid='"+sid+"'")
             return ("Anmeldung fehlgeschlagen.") #TODO: language file
                 
 
@@ -165,45 +157,52 @@ class Vp():
         if (not self.isAuthorised(userId)):
             return ("Anmeldung erforderlich")
 
-        subjects = subjects.split(",")
+        subjects = subjects.strip().split(",")
+        for i in range(len(subjects)):
+            subjects[i] = subjects[i].strip().split(" ")
+            if (len(subjects[i]) == 1):
+                subjects[i].append("")
+            subjects[i][1] = subjects[i][1].strip() + "%"
+            subjects[i] = tuple(subjects[i])
+
         added = 0
         failed = 0
         equal = 0
 
         # Check input
-        for i in range(len(subjects)):
-            subjects[i] = subjects[i].strip()
-            if (not self.__checkInput(subjects[i])):
-                del subjects[i]
+        testedSubjects = []
+        for subject in subjects:
+            if (self.__checkInput(subject[0])
+                    and self.__checkInput(subject[1][:-1])):
+                testedSubjects.append(subject)
+            else:
                 failed += 1
-
+        subjects = testedSubjects
+        
         subjects = list(set(subjects)) #Remove dublicates
 
         # Get current subjects
         sql_command = """
-            SELECT course
+            SELECT course, lessonStart
             FROM course
             WHERE userId = ?
         """
         self.__cursor.execute(sql_command, (userId,))
         curSubjects = self.__cursor.fetchall()
-        for i in range(len(curSubjects)):
-            curSubjects[i] = curSubjects[i][0]
 
         #insert subjects into the database
         sql_command = """
-            INSERT INTO course (userId, course)
-            VALUES (?, ?)
+            INSERT INTO course (userId, course, lessonStart)
+            VALUES (?, ?, ?)
         """
         addedSubjects = str()
         for elem in subjects:
             if (elem in curSubjects):
                 equal += 1
-                subjects.remove(elem)
             else:
-                self.__cursor.execute(sql_command, (userId, elem))
+                self.__cursor.execute(sql_command, (userId,)+elem)
                 added += 1
-                addedSubjects += elem + ", "
+                addedSubjects += elem[0]+" "+elem[1] + ", "
 
         self.__database.commit()
         print("Subject added userId="+str(userId)+" added="+str(added)\
@@ -224,22 +223,27 @@ class Vp():
         delete all given subjects from the user
         """
         subjects = subjects.split(",")
+        oldSubjects = []
         for i in range(len (subjects)):
-            subjects[i] = subjects[i].strip()
             if (not self.__checkInput(subjects[i])):
-                del subjects[i]
+                continue
+            oldSubjects.append(subjects[i].strip().split(" ", 1))
+            if (len(oldSubjects[-1]) == 1):
+                oldSubjects[-1].append("")
+            oldSubjects[-1][1] += "%"
+            oldSubjects[-1] = tuple(oldSubjects[-1])
 
-        subjects = list(set(subjects)) # Remove dublicates
+        subjects = list(set(oldSubjects)) # Remove dublicates
         
         sql_command = """
             DELETE FROM course
             WHERE userId = ?
             AND course = ?
+            AND lessonStart = ?
         """
-        print(subjects)
 
         for subject in subjects:
-            self.__cursor.execute(sql_command, (userId, subject))
+            self.__cursor.execute(sql_command, (userId,) + subject)
         self.__database.commit()
 
         return ("Ok, alle gegebenen Kurse entfernt")
@@ -254,8 +258,10 @@ class Vp():
             DELETE FROM course
             WHERE userId = ?
         """
+        print("User resetted all subjects userId="+str(userId))
         self.__cursor.execute(sql_command, (userId,))
         self.__database.commit()
+        return ("Reset erfolreich")
 
 
     def getUserInfo(self, userId):
@@ -275,8 +281,6 @@ class Vp():
 
         return ("Deine Kurse sind: "+ subjects)
         
-
-
 
     def getUserStatus(self, userId):
         """
@@ -308,10 +312,14 @@ class Vp():
             print("failed to load vp")
             return ([])
 
+        #check if the date has changed
+        if (self.__websiteHash == hashlib.sha256(page.encode()).hexdigest()):
+            return ([])
+
+        self.__websiteHash = hashlib.sha256(page.encode()).hexdigest()
+        
         entries = []
-        
-        #TODO: check if the date has changed
-        
+
         soup = BeautifulSoup(page)
         dates = [date.text.split()[-2:] for date in soup.findAll("nobr")[1:]]
         tables = soup.findAll("table")
@@ -320,14 +328,14 @@ class Vp():
             date = dates[i][1].replace("(", "").replace(")", "")
             date = time.strptime(date, "%d.%m.%Y")
             date = time.strftime("%Y-%m-%d", date)
+            dates[i] = date
 
             for row in tables[i].findAll("tr")[1:]:
                 doubleEntry = row.findAll("td")
                 doubleEntry = [doubleEntry[:3], doubleEntry[3:]]
                 for entry in doubleEntry:
                     #Skip crossed entrys
-                    if (entry[2].findAll("u")):
-                        print("skipped")
+                    if (entry[2].findAll("s")):
                         continue
                     else:
                         #get unformatted text
@@ -355,15 +363,21 @@ class Vp():
                         lesson = ""
                         if (len(entry[1].split()) > 1):
                             lesson = entry[1].split()[-1]
+                        
+                        numbers = [str(i) for i in range(10)]
+                        hours = []
+                        for char in entry[0]:
+                            if (char in numbers):
+                                hours.append(int(char))
 
-                        entries.append([date, weekday, entry[0],\
-                                grade+"/"+class1, lesson, entry[2]])
-                        entries.append([date, weekday, entry[0],\
-                                grade+"/"+class2, lesson, entry[2]])
+                        for hour in hours:
+                            entries.append([date, weekday, hour,\
+                                    grade+"/"+class1, lesson, entry[2]])
+                            entries.append([date, weekday, hour,\
+                                    grade+"/"+class2, lesson, entry[2]])
 
                     else:
                         info = entry[1].split() 
-                        print(info)
                         grade = ""
                         lesson = ""
 
@@ -372,8 +386,6 @@ class Vp():
 
                         elif (len(info) == 2):
                             grade, lesson = info
-                            if (lesson[0].lower() == "w"):
-                                grade += " " + lesson
 
                         else:
                             grade = info[0]
@@ -381,8 +393,15 @@ class Vp():
                             for string in info[2:]:
                                 lesson += " "+string
 
-                        entries.append([date, weekday, entry[0],\
-                                grade, lesson, entry[2]])
+                        numbers = [str(i) for i in range(10)]
+                        hours = []
+                        for char in entry[0]:
+                            if (char in numbers):
+                                hours.append(int(char))
+
+                        for hour in hours:
+                            entries.append([date, weekday, hour,\
+                                    grade, lesson, entry[2]])
                         
         for entry in entries:
             print(entry)
@@ -391,8 +410,11 @@ class Vp():
 
 if (__name__ == "__main__"):
     vp = Vp("http://archenhold.de/api/vp.php?sid={sid}",\
-            "",\
+            "q3YvFZI6qbpP0AKeNlI3PzUqmwEFv3IV",\
             "telegramBot.db")
+    vp.checkUser(1,"q3YvFZI6qbpP0AKeNlI3PzUqmwEFv3IV")
 
-    print(vp.getUpdates())
+    vp.addUserSubjects(1, "10 WInf, g33, g13")
+    vp.delUserSubjects(1, "10 WInf, g33, g13 3")
+    #vp.getUpdates()
 
