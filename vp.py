@@ -5,8 +5,13 @@ from datetime import datetime
 import time
 from bs4 import BeautifulSoup
 import hashlib
+import sys
 
 VALID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890./ "
+
+CHANGE_ADDED = 1
+CHANGE_UPDATED = 2
+CHANGE_REMOVED = 3
 
 class Vp():
     def __init__(self, website, sid, database):
@@ -50,14 +55,16 @@ class Vp():
 
         sql_command = """
             CREATE TABLE entry (
-                entryId INTEGER PRIMARY KEY,
                 date DATE,
-                day CHAR(10),
+                weekday CHAR(10),
                 hour INTEGER,
                 course CHAR(10),
                 lesson CHAR(10),
-                change CHAR(64));
-        """
+                change CHAR(64),
+                changed CHAR(1) DEFAULT 1,
+                lastchange INTEGER DEFAULT {added},
+                PRIMARY KEY (date, weekday, hour, course, lesson));
+        """.format(added = CHANGE_ADDED)
         self.__cursor.execute(sql_command)
 
         sql_command = """
@@ -173,7 +180,8 @@ class Vp():
         testedSubjects = []
         for subject in subjects:
             if (self.__checkInput(subject[0])
-                    and self.__checkInput(subject[1][:-1])):
+                    and self.__checkInput(subject[1][:-1])
+                    and subject[0].strip() != ""):
                 testedSubjects.append(subject)
             else:
                 failed += 1
@@ -224,8 +232,12 @@ class Vp():
         """
         subjects = subjects.split(",")
         oldSubjects = []
+
+        removed = 0
+        failed = 0
         for i in range(len (subjects)):
             if (not self.__checkInput(subjects[i])):
+                failed += 1
                 continue
             oldSubjects.append(subjects[i].strip().split(" ", 1))
             if (len(oldSubjects[-1]) == 1):
@@ -291,33 +303,20 @@ class Vp():
             FROM course
             NATRUAL JOIN entry
             WHERE userId = ?
+            AND lessonStart LIKE lesson
             AND date >= ?
         """
         self.__curosr.execute(sql_command,\
                 (userId, datetime.date(datetime.now())))
-        print(self.__cursor.fetchall())
         for (date, day, hour, course, lesson, change)\
                 in self.__curosr.fetchall():
             pass
 
-    def getUpdates(self):
+
+    def __getWebsiteEntries(self, page):
         """
-        returns the changes of the vp for every user in the form
-        [(userId, "message"), (userId2, "message"), ...]
+        Returns all Entries found on the given page (HTML-Code)
         """
-        page = urllib.request.urlopen(self.__website\
-                .format(sid=self.__sid)).read().decode("cp1252")
-
-        if (not page):
-            print("failed to load vp")
-            return ([])
-
-        #check if the date has changed
-        if (self.__websiteHash == hashlib.sha256(page.encode()).hexdigest()):
-            return ([])
-
-        self.__websiteHash = hashlib.sha256(page.encode()).hexdigest()
-        
         entries = []
 
         soup = BeautifulSoup(page)
@@ -371,10 +370,10 @@ class Vp():
                                 hours.append(int(char))
 
                         for hour in hours:
-                            entries.append([date, weekday, hour,\
-                                    grade+"/"+class1, lesson, entry[2]])
-                            entries.append([date, weekday, hour,\
-                                    grade+"/"+class2, lesson, entry[2]])
+                            entries.append([(date, weekday, hour,\
+                                    grade+"/"+class1, lesson), entry[2]])
+                            entries.append([(date, weekday, hour,\
+                                    grade+"/"+class2, lesson), entry[2]])
 
                     else:
                         info = entry[1].split() 
@@ -400,21 +399,119 @@ class Vp():
                                 hours.append(int(char))
 
                         for hour in hours:
-                            entries.append([date, weekday, hour,\
-                                    grade, lesson, entry[2]])
-                        
-        for entry in entries:
-            print(entry)
+                            entries.append([(date, weekday, hour,\
+                                    grade, lesson), entry[2]])
+        return (entries, dates)
+        
 
 
+    def getUpdates(self):
+        """
+        returns the changes of the vp for every user in the form
+        [(userId, "message"), (userId2, "message"), ...]
+        """
+        page = urllib.request.urlopen(self.__website\
+                .format(sid=self.__sid)).read().decode("cp1252")
 
-if (__name__ == "__main__"):
-    vp = Vp("http://archenhold.de/api/vp.php?sid={sid}",\
-            "q3YvFZI6qbpP0AKeNlI3PzUqmwEFv3IV",\
-            "telegramBot.db")
-    vp.checkUser(1,"q3YvFZI6qbpP0AKeNlI3PzUqmwEFv3IV")
+        if (not page):
+            print("failed to load vp")
+            return ([])
 
-    vp.addUserSubjects(1, "10 WInf, g33, g13")
-    vp.delUserSubjects(1, "10 WInf, g33, g13 3")
-    #vp.getUpdates()
+        #check if the date has changed
+        if (self.__websiteHash == hashlib.sha256(page.encode()).hexdigest()):
+            return ([])
+
+        self.__websiteHash = hashlib.sha256(page.encode()).hexdigest()
+
+        #TODO: set all entrys to not new
+        
+        websiteEntries, dates = self.__getWebsiteEntries(page)
+
+        databaseEntries = []
+        for date in dates:
+            sql_command = """
+                SELECT date, weekday, hour, course, lesson, change
+                FROM entry
+                WHERE date = ?
+            """
+            self.__cursor.execute(sql_command, (date,))
+            databaseRawEntries = self.__cursor.fetchall()
+            for entry in databaseRawEntries:
+                databaseEntries.append([entry[:-1], entry[-1]])
+        
+        addedEntries = 0
+        updatedEntries = 0
+        removedEntries = 0
+        ignoredEntries = 0
+        failedEntries = 0
+        
+        print(len(websiteEntries), len(databaseEntries))
+        for entry in websiteEntries[:]:
+            if (entry in databaseEntries):
+                # Already in database
+                websiteEntries.remove(entry)
+                databaseEntries.remove(entry)
+                ignoredEntries += 1
+                #TODO: Check whether the entry was deleted bevor
+                continue # Already in database
+
+            entryInDatabase = False
+            for databaseEntry in databaseEntries:
+                if (entry[0] == databaseEntry[0]):
+                    # only the change has changed
+                    sql_command = """
+                        UPDATE entry
+                        SET (change, changed, lastchange)
+                            VALUES (?, ?, ?)
+                        FROM entry
+                        WHERE date = ?
+                            AND weekday = ?
+                            AND hour = ?
+                            AND course = ?
+                            AND lesson = ?
+                    """
+                    self.__cursor.execute(sql_command, (entry[1], True, CHANGE_UPADTE)\
+                            + entry[0])
+
+                    databaseEntries.remove(entry)
+                    websiteEntries.remove(entry)
+
+                    updatedEntries += 1
+                    entryInDatabase = True
+                    break
+
+            if (not entryInDatabase):
+                # Insert entry into the database
+                sql_command = """
+                    INSERT INTO entry
+                    (date, weekday, hour, course, lesson, change)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """
+                try:
+                    self.__cursor.execute(sql_command, entry[0]+(entry[1],))
+                    addedEntries += 1
+                except:
+                    failedEntries += 1
+                    pass
+
+                continue
+
+        print(len(websiteEntries),len(databaseEntries))
+        time.sleep(3)
+        for entry in databaseEntries:
+            # Set status to deleted
+            print("Deleted:", entry)
+            removedEntries+=1
+            continue
+            
+
+        self.__database.commit()
+
+        print("Updated vp: Entrys added="+str(addedEntries)\
+                +" updated="+str(updatedEntries)\
+                +" removed="+str(removedEntries)\
+                +" ignored="+str(ignoredEntries)\
+                +" failed="+str(failedEntries))
+
+
 
