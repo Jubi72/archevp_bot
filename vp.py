@@ -305,18 +305,34 @@ class Vp():
         returns the current vp Status from the user as a message string
         """
         sql_command = """
-            SELECT date, day, hour, course, lesson, change 
+            SELECT date, hour, entry.course, lesson, change
             FROM course
-                NATRUAL JOIN entry
+                JOIN entry ON course.course COLLATE NOCASE = entry.course
+                    AND lesson LIKE lessonStart
             WHERE userId = ?
-                AND lessonStart LIKE lesson
                 AND date >= ?
+                AND lastchange != ?
+            ORDER BY date, hour
         """
-        self.__curosr.execute(sql_command,\
-                (userId, datetime.date(datetime.now())))
-        for (date, day, hour, course, lesson, change)\
-                in self.__curosr.fetchall():
-            pass
+        self.__cursor.execute(sql_command,\
+                (userId, datetime.date(datetime.now()), CHANGE_REMOVED))
+        
+        curDate = ""
+        curMessage = ""
+        message = "Vertretungsplan:"
+        for change in self.__cursor.fetchall():
+            if (curDate != change[0]):
+                curDate = change[0]
+                message += "\n\n" + "{weekday} der {day}:"\
+                        .format(weekday = calendar.day_name[datetime.strptime(curDate, "%Y-%m-%d").weekday()],\
+                            day = datetime.strptime(curDate, "%Y-%m-%d").strftime("%d.%m.%Y"))
+            
+            message += "\n" + "  {std}. Std: {course} {lesson} - {change}"\
+                    .format(std = change[1],\
+                        course = change[2],\
+                        lesson = change[3],\
+                        change = change[4])
+        return message
 
 
     def __getWebsiteDates(self, page):
@@ -598,10 +614,10 @@ class Vp():
         messages = []
         print("changes:",changes)
         for change in changes:
-            if (changes[0] != curUser):
+            if (change[0] != curUser):
                 if (curUser != -1):
                     messages.append((curUser, curMessage))
-                curUser = changes[0]
+                curUser = change[0]
                 curDate = ""
                 curMessage = "Aenderung am Vertretungsplan:"
             if (curDate != change[1]):
