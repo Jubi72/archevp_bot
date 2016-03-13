@@ -5,20 +5,23 @@ from datetime import datetime
 import time
 from bs4 import BeautifulSoup
 import hashlib
-import sys
+import calendar
 
 VALID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890./ "
 
-CHANGE_ADDED = 1
-CHANGE_UPDATED = 2
-CHANGE_REMOVED = 3
+CHANGE_ADDED = 0
+CHANGE_UPDATED = 1
+CHANGE_REMOVED = 2
+
+CHANGE_MESSAGES = ["ADD", "UPD", "DEL"]
 
 class Vp():
-    def __init__(self, website, sid, database):
+    def __init__(self, website, websiteVpDate, sid, database):
         """
         initialize Variables and the database
         """
         self.__website = website
+        self.__websiteVpDate = websiteVpDate
         self.__databaseFile = database
         createDatabase = not os.path.exists(self.__databaseFile)
         self.__database = sqlite3.connect(self.__databaseFile)
@@ -26,7 +29,9 @@ class Vp():
         self.__lastChange = "" # date and time, when the last change has happend
         self.__sid = sid
         self.__websiteHash = ""
+        self.__firstUpdate = False
         if (createDatabase):
+            self.__firstUpdate = False
             self.__createDatabase()
 
 
@@ -180,7 +185,9 @@ class Vp():
         for subject in subjects:
             if (self.__checkInput(subject[0])
                     and self.__checkInput(subject[1][:-1])
-                    and subject[0].strip() != ""):
+                    and subject[0].strip() != ""
+                    and len(subject[0])<=10
+                    and len(subject[1])<=10):
                 testedSubjects.append(subject)
             else:
                 failed += 1
@@ -249,8 +256,8 @@ class Vp():
         sql_command = """
             DELETE FROM course
             WHERE userId = ?
-            AND course = ?
-            AND lessonStart = ?
+                AND course = ?
+                AND lessonStart = ?
         """
 
         for subject in subjects:
@@ -300,10 +307,10 @@ class Vp():
         sql_command = """
             SELECT date, day, hour, course, lesson, change 
             FROM course
-            NATRUAL JOIN entry
+                NATRUAL JOIN entry
             WHERE userId = ?
-            AND lessonStart LIKE lesson
-            AND date >= ?
+                AND lessonStart LIKE lesson
+                AND date >= ?
         """
         self.__curosr.execute(sql_command,\
                 (userId, datetime.date(datetime.now())))
@@ -318,8 +325,7 @@ class Vp():
         """
         soup = BeautifulSoup(page)
         dates = [date.text.split()[-2:] for date in soup.findAll("nobr")[1:]]
-        tables = soup.findAll("table")
-        for i in range(len(tables)):
+        for i in range(len(dates)):
             date = dates[i][1].replace("(", "").replace(")", "")
             date = time.strptime(date, "%d.%m.%Y")
             date = time.strftime("%Y-%m-%d", date)
@@ -337,7 +343,6 @@ class Vp():
 
         soup = BeautifulSoup(page)
         tables = soup.findAll("table")
-        print(dates)
         for table in range(len(tables)):
             for row in tables[table].findAll("tr")[1:]:
                 doubleEntry = row.findAll("td")
@@ -425,9 +430,8 @@ class Vp():
         for date in dates:
             sql_command = """
                 SELECT date, hour, course, lesson, change
-                FROM entry
-                WHERE date = ?
-                AND lastchange != ?
+                FROM entry WHERE date = ?
+                    AND lastchange != ?
             """
             self.__cursor.execute(sql_command, (date, CHANGE_REMOVED))
             databaseRawEntries = self.__cursor.fetchall()
@@ -477,9 +481,9 @@ class Vp():
             SELECT *
             FROM entry
             WHERE date = ?
-            AND hour = ?
-            AND course = ?
-            AND lesson = ?
+                AND hour = ?
+                AND course = ?
+                AND lesson = ?
         """
         self.__cursor.execute(sql_command, entry[0])
         if (self.__cursor.fetchone()):
@@ -547,7 +551,6 @@ class Vp():
                 updatedEntries += 1
                 for elem in oldEntries[:]:
                     if (elem[0] == entry[0]):
-                        print(elem, entry)
                         oldEntries.remove(elem)
 
             else:
@@ -564,13 +567,59 @@ class Vp():
 
         self.__database.commit()
 
-        print("Update vp: Entrys added="+str(addedEntries)\
+        print("Update vp: Entries added="+str(addedEntries)\
                 +" updated="+str(updatedEntries)\
                 +" removed="+str(removedEntries)\
                 +" skipped="+str(skippedEntries)\
                 +" failed="+str(failedEntries))
 
 
+    def __getUpdateMessages(self):
+        """
+        This function read all database entries and return messages
+        for all users, who had changes
+        List format:
+        [(userId (int), message (string)), ...]
+        """
+        sql_command = """
+            SELECT userId, date, hour, entry.course, lesson, lastchange, change
+            FROM course
+                JOIN entry ON course.course COLLATE NOCASE = entry.course
+                    AND lesson LIKE lessonStart
+            WHERE changed = 1
+            ORDER BY userId, date, hour
+        """
+        self.__cursor.execute(sql_command)
+        changes = self.__cursor.fetchall()
+
+        curUser = -1
+        curDate = ""
+        curMessage = ""
+        messages = []
+        print("changes:",changes)
+        for change in changes:
+            if (changes[0] != curUser):
+                if (curUser != -1):
+                    messages.append((curUser, curMessage))
+                curUser = changes[0]
+                curDate = ""
+                curMessage = "Aenderung am Vertretungsplan:"
+            if (curDate != change[1]):
+                curDate = change[1]
+                curMessage += "\n\n" + "{weekday} der {day}:"\
+                        .format(weekday = calendar.day_name[datetime.strptime(curDate, "%Y-%m-%d").weekday()],\
+                            day = datetime.strptime(curDate, "%Y-%m-%d").strftime("%d.%m.%Y"))
+            
+            curMessage += "\n" + "  {std}. Std: {lastchange} {course} {lesson} - {change}"\
+                    .format(std = change[2],\
+                        course = change[3],\
+                        lesson = change[4],\
+                        lastchange = CHANGE_MESSAGES[change[5]],\
+                        change = change[6])
+        if (curUser != -1):
+            messages.append((curUser, curMessage))
+        return messages
+        
 
     def getUpdates(self):
         """
@@ -581,6 +630,8 @@ class Vp():
         try:
             page = urllib.request.urlopen(self.__website\
                 .format(sid=self.__sid)).read().decode("cp1252")
+            #page = open("vp.html", "rb").read().decode("cp1252")
+            vpDate = urllib.request.urlopen(self.__websiteVpDate).read()
         except:
             print("Update vp: Error while loading vp website")
             return ([])
@@ -590,11 +641,11 @@ class Vp():
             return ([])
 
         #check if the date has changed
-        if (self.__websiteHash == hashlib.sha256(page.encode()).hexdigest()):
+        if (self.__websiteHash == hashlib.sha256(vpDate).hexdigest()):
             # Website hasn't changed
             return ([])
 
-        self.__websiteHash = hashlib.sha256(page.encode()).hexdigest()
+        self.__websiteHash = hashlib.sha256(vpDate).hexdigest()
 
         # get all website enrtries
         websiteDates = self.__getWebsiteDates(page)
@@ -606,16 +657,11 @@ class Vp():
         # update the database by comparing website and database entries
         self.__updateDatabase(websiteEntries, databaseEntries)
 
-
-if (__name__ == "__main__"):
-    vp = Vp("http://archenhold.de/api/vp.php?sid={sid}",\
-            "q3YvFZI6qbpP0AKeNlI3PzUqmwEFv3IV",\
-            "telegramBot.db")
-    vp.checkUser(1,"q3YvFZI6qbpP0AKeNlI3PzUqmwEFv3IV")
-
-    vp.addUserSubjects(1, "asdfjklgsddfsdkfj")
-    print(vp.getUserInfo(1))
-    vp.getUpdates()
-    vp.getUpdates()
+        # Get messages for users, who has changed entries form the vp
+        if (self.__firstUpdate):
+            self.__firstUpdate = False
+            # first update -> all entries new -> do not send all to users
+            return ([])
+        return (self.__getUpdateMessages())
 
 
