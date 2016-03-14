@@ -348,6 +348,93 @@ class Vp():
             dates[i] = date
         return dates
 
+    
+    def __getWebsiteEntriesCourses(self, cell):
+        """
+        this function gets a cell (string) with the course
+        examples: "7/1 Ma", "8/3+4 FrT", "G30/130 Ge"
+        and returns all curses and the lesson
+        (("curse1", "curse2", ...), "lesson")
+        """
+        if ("+" in cell):
+            classes = cell.split(" ")[0].split("/")[1].split("+")
+
+            lesson = ""
+            if (len(cell.split(" ", 1)) > 1):
+                lesson = cell.split(" ", 1)[1]
+
+            for i in range(len(classes)):
+                classes[i] = cell.split("/")[0].strip() + "/" + classes[i].strip()
+            return (tuple(classes), lesson)
+
+        elif (len(cell)>0 and cell[0].lower() in "lg" and "/" in cell):
+            courses = cell[1:].split(" ")[0].split("/")
+            lesson = ""
+
+            if (len(cell.split(" ", 1)) > 1):
+                lesson = cell.split(" ", 1)[1]
+
+            for i in range(len(courses)):
+                courses[i] = cell[0]+courses[i].strip()
+            return (tuple(courses), lesson)
+
+        info = cell.split(" ", 1) 
+        grade = info[0]
+        lesson = ""
+        if (len(info) > 1):
+            lesson = info[1]
+        return ((grade,), lesson)
+
+
+    def __getWebsiteEntryHours(self, cell):
+        """
+        This function gets a cell (string) with the hours
+        and returns all as a tupel with this format:
+        (hour1 (int), hour2 (int), ...)
+        """
+        numbers = [str(i) for i in range(10)]
+        hours = []
+        for char in cell:
+            if (char in numbers):
+                hours.append(int(char))
+        return tuple(hours)
+
+
+    def __getWebsiteEntriesRow(self, date, row):
+        """
+        This function get a one row and 3 col html-table and returns
+        a table in this format:
+        [[(date, hour, course, lesson), change], ...]
+        """
+        #Skip crossed entrys
+        if (row[2].findAll("s")):
+            return ([])
+        else:
+            #get unformatted text
+            for col in range(len(row)):
+                row[col] = row[col].text.strip()
+
+        # delete annoying chars
+        row[2] = row[2].replace("\r", "")
+        row[2] = row[2].replace("\n", "")
+        row[2] = row[2].replace("\xa0", "")
+        while ("  " in row[2]):
+            row[2] = row[2].replace("  ", " ")
+
+        # skip emty entries
+        if (row[1] == '' and row[2] == ''):
+            return ([])
+
+        #get all course/class, hours
+        courses, lesson = self.__getWebsiteEntriesCourses(row[1])
+        hours = self.__getWebsiteEntryHours(row[0])
+
+        newEntries = []
+        for hour in hours:
+            for cours in courses:
+                newEntries.append([(date, hour, cours, lesson), row[2]])
+        return newEntries
+
 
     def __getWebsiteEntries(self, page, dates):
         """
@@ -359,79 +446,21 @@ class Vp():
 
         soup = BeautifulSoup(page)
         tables = soup.findAll("table")
-        for table in range(len(tables)):
-            for row in tables[table].findAll("tr")[1:]:
+        for tableIdx in range(len(tables)):
+            for row in tables[tableIdx].findAll("tr")[1:]:
                 doubleEntry = row.findAll("td")
                 doubleEntry = [doubleEntry[:3], doubleEntry[3:]]
                 for entry in doubleEntry:
-                    #Skip crossed entrys
-                    if (entry[2].findAll("s")):
-                        continue
-                    else:
-                        #get unformatted text
-                        for col in range(len(entry)):
-                            entry[col] = entry[col].text.strip()
+                    for newEntry in self.__getWebsiteEntriesRow(dates[tableIdx], entry):
+                        # check if a class has 2 entries at the same time
+                        doublicate = False
+                        for oldEntry in entries:
+                            if (newEntry[0] == oldEntry[0]):
+                                doublicate = True
+                                oldEntry[1] += " " + newEntry[1]
+                        if (not doublicate):
+                            entries.append(newEntry)
 
-                    # skip emty entries
-                    if (entry[1] == '' and entry[2] == ''):
-                        continue
-
-                    # delete annoying chars
-                    entry[2] = entry[2].replace("\r", "")
-                    entry[2] = entry[2].replace("\n", "")
-                    entry[2] = entry[2].replace("\xa0", "")
-                    while ("  " in entry[2]):
-                        entry[2] = entry[2].replace("  ", " ")
-                    
-                    #get all course/class
-                    if ("+" in entry[1]):
-                        # dublicate this entry to get a entry for each class
-                        grade = entry[1].split("/")[0].strip()
-                        class1 = entry[1].split("/")[1].split("+")[0].strip()
-                        class2 = entry[1].split("/")[1].split("+")[1].strip()
-
-                        lesson = ""
-                        if (len(entry[1].split()) > 1):
-                            lesson = entry[1].split()[-1]
-                        
-                        numbers = [str(i) for i in range(10)]
-                        hours = []
-                        for char in entry[0]:
-                            if (char in numbers):
-                                hours.append(int(char))
-
-                        for hour in hours:
-                            entries.append([(dates[table], hour,\
-                                    grade+"/"+class1, lesson), entry[2]])
-                            entries.append([(dates[table], hour,\
-                                    grade+"/"+class2, lesson), entry[2]])
-
-                    else:
-                        info = entry[1].split() 
-                        grade = ""
-                        lesson = ""
-
-                        if (len(info) == 1):
-                            grade = info[0]
-
-                        elif (len(info) == 2):
-                            grade, lesson = info
-
-                        else:
-                            grade = info[0]
-                            lesson = info[1]
-                            for string in info[2:]:
-                                lesson += " "+string
-
-                        numbers = [str(i) for i in range(10)]
-                        hours = []
-                        for char in entry[0]:
-                            if (char in numbers):
-                                hours.append(int(char))
-
-                        for hour in hours:
-                            entries.append([(dates[table], hour,\
-                                    grade, lesson), entry[2]])
         return (entries)
 
 
@@ -482,6 +511,12 @@ class Vp():
         """
         try:
             self.__cursor.execute(sql_command, entry[0]+(entry[1],))
+            print("Updated vp: Added entry {date} {hour}. {course} {lesson}: {change}"
+                    .format(date = entry[0][0],
+                        hour = entry[0][1],
+                        course = entry[0][2],
+                        lesson = entry[0][3],
+                        change = entry[1]))
             return True
         except:
             return False
@@ -515,7 +550,13 @@ class Vp():
                     AND lesson = ?
             """
             self.__cursor.execute(sql_command,\
-                    (entry[1], True, CHANGE_UPDATED)+entry[0] )
+                    (entry[1], True, CHANGE_UPDATED)+entry[0])
+            print("Updated vp: Updated entry {date} {hour}. {course} {lesson} -> {change}"
+                    .format(date = entry[0][0],
+                        hour = entry[0][1],
+                        course = entry[0][2],
+                        lesson = entry[0][3],
+                        change = entry[1]))
             return True
         else:
             return False
@@ -536,6 +577,11 @@ class Vp():
                 AND course = ?
                 AND lesson = ?
         """
+        print("Update vp: Removed {date} {hour}. {course} {lesson}"
+                .format(date = entry[0],
+                        hour = entry[1],
+                        course = entry[2],
+                        lesson = entry[3]))
         self.__cursor.execute(sql_command,\
                 (True, CHANGE_REMOVED)+entry)
 
@@ -612,7 +658,6 @@ class Vp():
         curDate = ""
         curMessage = ""
         messages = []
-        print("changes:",changes)
         for change in changes:
             if (change[0] != curUser):
                 if (curUser != -1):
@@ -622,9 +667,9 @@ class Vp():
                 curMessage = "Aenderung am Vertretungsplan:"
             if (curDate != change[1]):
                 curDate = change[1]
-                curMessage += "\n\n" + "{weekday} der {day}:"\
+                curMessage += "\n\n" + "{weekday} der {date}:"\
                         .format(weekday = calendar.day_name[datetime.strptime(curDate, "%Y-%m-%d").weekday()],\
-                            day = datetime.strptime(curDate, "%Y-%m-%d").strftime("%d.%m.%Y"))
+                            date = datetime.strptime(curDate, "%Y-%m-%d").strftime("%d.%m.%Y"))
             
             curMessage += "\n" + "  {std}. Std: {lastchange} {course} {lesson} - {change}"\
                     .format(std = change[2],\
@@ -679,5 +724,4 @@ class Vp():
             # first update -> all entries new -> do not send all to users
             return ([])
         return (self.__getUpdateMessages())
-
 
