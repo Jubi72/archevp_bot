@@ -6,6 +6,7 @@ import time
 from bs4 import BeautifulSoup
 import hashlib
 import calendar
+from translation import Translation
 
 VALID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890./ "
 
@@ -13,7 +14,7 @@ CHANGE_ADDED = 0
 CHANGE_UPDATED = 1
 CHANGE_REMOVED = 2
 
-CHANGE_MESSAGES = ["ADD", "UPD", "DEL"]
+CHANGE_MESSAGES = ["CHANGE_ADDED", "CHANGE_UPDATED", "REMOVED"]
 
 class Vp():
     def __init__(self, website, websiteVpDate, sid, database):
@@ -30,8 +31,9 @@ class Vp():
         self.__sid = sid
         self.__websiteHash = ""
         self.__firstUpdate = False
+        self.__translation = Translation("./language/", "german")
         if (createDatabase):
-            self.__firstUpdate = False
+            self.__firstUpdate = True
             self.__createDatabase()
 
 
@@ -102,8 +104,9 @@ class Vp():
         """
         sid = url[url.find("=")+1:]
         if (not self.__checkInput(sid)):
-            print("Authentification failed: input='"+url+"'")
-            return ("Anmeldung fehlgeschlagen.") #TODO: language file
+            print("Authentification failed: input='{url}'"\
+                    .format(url=url))
+            return (self.__translation.get("AUTH_FAILED"))
         page = urllib.request.urlopen(self.__website.format(sid = sid))\
                 .read().decode('cp1252')
         
@@ -126,8 +129,8 @@ class Vp():
             prevUsername = self.__cursor.fetchone()
 
             if (prevUsername == None):
-                print("New user authentificated userId="+str(userId)\
-                        +" username='"+username+"'")
+                print("User authentificated userId={userId} username={username}"
+                        .format(userId = userId, username = username))
 
                 sql_command = """
                     INSERT INTO user (userId, username, sid, joining)
@@ -135,14 +138,21 @@ class Vp():
                 """
                 self.__cursor.execute(sql_command,\
                         (userId, username, sid, datetime.now()))
+
+                # insert public course to user
+                sql_command = """
+                    INSERT INTO course (userId, course, lessonStart)
+                    VALUES (?, "", "%")
+                """
+                self.__cursor.execute(sql_command, (userId,))
                 
                 self.__database.commit()
-                return ("Anmeldung erfolgreich als " + username)#TODO
+                return (self.__translation.get("AUTH_SUCCESSFUL"))
 
             else:
                 prevUsername = prevUsername[0]
-                print("User reauthentificated id="+str(userId)\
-                        +" ('"+prevUsername+"'->'"+username+"')")
+                print("User reauthentificated id={userId} ({name}->{newname})"\
+                        .format(userId = userId, name = prevUsername, newname = username))
                 if (prevUsername != username):
                     sql_command == """
                         UPDATE user
@@ -152,12 +162,12 @@ class Vp():
                     self.__cursor.execute(sql_command, (username, userId))
                     self.__database.commit()
 
-                return ("Anmeldung erfolgreich als {username}"\
-                        .format(username=username))
+                return (self.__translation.get("AUTH_SUCCESSFUL"))
 
         else:
-            print("User authentification failed id=" + str(userId)+ " sid='"+sid+"'")
-            return ("Anmeldung fehlgeschlagen.") #TODO: language file
+            print("User authentification failed id={userId} sid={sid}"\
+                    .format(userId=userId, sid=sid))
+            return (self.__translation.get("AUTH_FAILED"))
                 
 
 
@@ -219,30 +229,36 @@ class Vp():
                 addedSubjects += elem[0]+" "+elem[1] + ", "
 
         self.__database.commit()
-        print("Subject added userId="+str(userId)+" added="+str(added)\
+        print("User subjects add userId="+str(userId)+" added="+str(added)\
                 +" equal="+str(equal)+" failed="+str(failed))
         
         if (added == 0):
-            return ("Keine Kurse dazugekommen.")
+            return (self.__translation.get("ADDED_NOTHING"))
 
         elif (added == 1):
-            return ("Dazugekommener Kurs: " + addedSubjects[:-2])
+            return (self.__translation.get("ADDED_SINGLE")\
+                    .format(course=addedSubjects[:-2]))
 
         else:
-            return ("Dazugekommene Kurse: " + addedSubjects[:-2])
+            return (self.__translation.get("ADDED_MULTIPLE")\
+                    .format(courses = addedSubjects[:-2]))
 
 
     def delUserSubjects(self, userId, subjects):
         """
         delete all given subjects from the user
         """
+        if (not self.isAuthorised(userId)):
+            return (self.__translation.get("AUTH_REQUIRED"))
+
         subjects = subjects.split(",")
         oldSubjects = []
 
         removed = 0
         failed = 0
-        for i in range(len (subjects)):
-            if (not self.__checkInput(subjects[i])):
+        for i in range(len(subjects)):
+            if (not self.__checkInput(subjects[i])
+                    or subjects[i].strip() == ""):
                 failed += 1
                 continue
             oldSubjects.append(subjects[i].strip().split(" ", 1))
@@ -262,24 +278,32 @@ class Vp():
 
         for subject in subjects:
             self.__cursor.execute(sql_command, (userId,) + subject)
+            removed += 1
         self.__database.commit()
 
-        return ("Ok, alle gegebenen Kurse entfernt")
+        print("User subjects rem userId={userId} removed={removed} failed={failed}"
+            .format(userId = userId,
+                removed = removed,
+                failed = failed))
+        return (self.__translation.get("REMOVED_SOME"))
         
-
 
     def resetUserSubjects(self, userId):
         """
         deletes all subjects from the user
         """
+        if (not self.isAuthorised(userId)):
+            return (self.__translation.get("AUTH_REQUIRED"))
+
         sql_command = """
             DELETE FROM course
             WHERE userId = ?
+                AND course != ""
         """
-        print("User resetted all subjects userId="+str(userId))
+        print("User subjects del userId="+str(userId))
         self.__cursor.execute(sql_command, (userId,))
         self.__database.commit()
-        return ("Reset erfolreich")
+        return (self.__translation.get("REMOVED_ALL"))
 
 
     def getUserInfo(self, userId):
@@ -287,6 +311,10 @@ class Vp():
         returns the info of the user as a message string Info includes
         all subjects of the user and an information
         """
+        if (not self.isAuthorised(userId)):
+            return (self.__translation.get("AUTH_REQUIRED"))
+
+
         sql_command = """
             SELECT course 
             FROM course
@@ -297,13 +325,16 @@ class Vp():
         for (subject,) in self.__cursor.fetchall():
             subjects += "\n" + subject 
 
-        return ("Deine Kurse sind: "+ subjects)
+        return (self.__translation.get("CURRENT").format(courses=subjects))
         
 
     def getUserStatus(self, userId):
         """
         returns the current vp Status from the user as a message string
         """
+        if (not self.isAuthorised(userId)):
+            return (self.__translation.get("AUTH_REQUIRED"))
+ 
         sql_command = """
             SELECT date, hour, entry.course, lesson, change
             FROM course
@@ -319,19 +350,33 @@ class Vp():
         
         curDate = ""
         curMessage = ""
-        message = "Vertretungsplan:"
+        message = self.__translation.get("VP_HEADER")
         for change in self.__cursor.fetchall():
             if (curDate != change[0]):
+                continue
                 curDate = change[0]
-                message += "\n\n" + "{weekday} der {day}:"\
-                        .format(weekday = calendar.day_name[datetime.strptime(curDate, "%Y-%m-%d").weekday()],\
-                            day = datetime.strptime(curDate, "%Y-%m-%d").strftime("%d.%m.%Y"))
-            
-            message += "\n" + "  {std}. Std: {course} {lesson} - {change}"\
-                    .format(std = change[1],\
-                        course = change[2],\
-                        lesson = change[3],\
-                        change = change[4])
+                message += "\n\n" + self.__translation.get("VP_DAY")\
+                  .format(weekday = self.__translation.get("WEEKDAY_"+calendar.\
+                     day_name[datetime.strptime(curDate, "%Y-%m-%d").weekday()]\
+                        .upper()),\
+                     date = datetime.strptime(curDate, "%Y-%m-%d")\
+                        .strftime(self.__translation.get("VP_DATE")))
+        
+            course = change[3]
+            if (course):
+                course += " " + change[4]
+                curMessage += "\n  " + self.__translation.get("VP_CHANGE")\
+                    .format(std = change[2],\
+                        course = course,\
+                        lastchange = CHANGE_MESSAGES[change[5]].upper(),\
+                        change = change[6])
+
+            else:
+                curMessage += "\n  " + self.__translation.get("VP_CHANGE_WOC")\
+                    .format(std = change[2],\
+                        lastchange = CHANGE_MESSAGES[change[5]].upper(),\
+                        change = change[6])
+
         return message
 
 
@@ -339,13 +384,22 @@ class Vp():
         """
         Returns all Dates found on the website
         """
-        soup = BeautifulSoup(page)
-        dates = [date.text.split()[-2:] for date in soup.findAll("nobr")[1:]]
-        for i in range(len(dates)):
-            date = dates[i][1].replace("(", "").replace(")", "")
-            date = time.strptime(date, "%d.%m.%Y")
+        soup = BeautifulSoup(page, "html.parser")
+        for table in soup.findAll("table"):
+            table.clear()
+        rawDates = soup.findAll("p")[1:]
+        
+        dates = []
+        for rawDate in rawDates:
+            # Skip emty entries
+            if (rawDate.text.strip() == ""):
+                continue
+
+            strDate = rawDate.text.split()[-1]
+            strDate = strDate.replace("(", "").replace(")", "")
+            date = time.strptime(strDate, "%d.%m.%Y")
             date = time.strftime("%Y-%m-%d", date)
-            dates[i] = date
+            dates.append(date)
         return dates
 
     
@@ -415,11 +469,13 @@ class Vp():
                 row[col] = row[col].text.strip()
 
         # delete annoying chars
-        row[2] = row[2].replace("\r", "")
-        row[2] = row[2].replace("\n", "")
-        row[2] = row[2].replace("\xa0", "")
-        while ("  " in row[2]):
-            row[2] = row[2].replace("  ", " ")
+        for i in range(len(row)):
+            row[i] = row[i].replace("\t", "")
+            row[i] = row[i].replace("\r", "")
+            row[i] = row[i].replace("\n", "")
+            row[i] = row[i].replace("\xa0", "")
+            while ("  " in row[i]):
+                row[i] = row[i].replace("  ", " ")
 
         # skip emty entries
         if (row[1] == '' and row[2] == ''):
@@ -444,7 +500,7 @@ class Vp():
         """
         entries = []
 
-        soup = BeautifulSoup(page)
+        soup = BeautifulSoup(page, "html.parser")
         tables = soup.findAll("table")
         for tableIdx in range(len(tables)):
             for row in tables[tableIdx].findAll("tr")[1:]:
@@ -664,18 +720,27 @@ class Vp():
                     messages.append((curUser, curMessage))
                 curUser = change[0]
                 curDate = ""
-                curMessage = "Aenderung am Vertretungsplan:"
+                curMessage = self.__translation.get("VP_CHANGE_HEADER")
             if (curDate != change[1]):
                 curDate = change[1]
-                curMessage += "\n\n" + "{weekday} der {date}:"\
-                        .format(weekday = calendar.day_name[datetime.strptime(curDate, "%Y-%m-%d").weekday()],\
-                            date = datetime.strptime(curDate, "%Y-%m-%d").strftime("%d.%m.%Y"))
+                curMessage += "\n" + self.__translation.get("VP_DAY")\
+                    .format(weekday = self.__translation.get("WEEKDAY_"+\
+                                calendar.day_name[datetime.strptime(curDate, "%Y-%m-%d").weekday()].upper()),\
+                            date = datetime.strptime(curDate, "%Y-%m-%d").strftime(self.__translation.get("VP_DATE")))
             
-            curMessage += "\n" + "  {std}. Std: {lastchange} {course} {lesson} - {change}"\
+            course = change[3]
+            if (course):
+                course += " " + change[4]
+                curMessage += "\n  " + self.__translation.get("VP_CHANGE")\
                     .format(std = change[2],\
-                        course = change[3],\
-                        lesson = change[4],\
-                        lastchange = CHANGE_MESSAGES[change[5]],\
+                        course = course,\
+                        lastchange = CHANGE_MESSAGES[change[5]].upper(),\
+                        change = change[6])
+
+            else:
+                curMessage += "\n  " + self.__translation.get("VP_CHANGE_WOC")\
+                    .format(std = change[2],\
+                        lastchange = CHANGE_MESSAGES[change[5]].upper(),\
                         change = change[6])
         if (curUser != -1):
             messages.append((curUser, curMessage))
@@ -691,7 +756,7 @@ class Vp():
         try:
             page = urllib.request.urlopen(self.__website\
                 .format(sid=self.__sid)).read().decode("cp1252")
-            #page = open("vp.html", "rb").read().decode("cp1252")
+            page = open("vp.html", "rb").read().decode("cp1252")
             vpDate = urllib.request.urlopen(self.__websiteVpDate).read()
         except:
             print("Update vp: Error while loading vp website")
@@ -724,4 +789,5 @@ class Vp():
             # first update -> all entries new -> do not send all to users
             return ([])
         return (self.__getUpdateMessages())
+
 

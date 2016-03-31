@@ -1,0 +1,37 @@
+# Translation of messages into the German language
+
+#Authentification messages
+AUTH_FAILED:       "Authentifizierung Fehlgeschlagen"
+AUTH_SUCCESSFUL:   "Authentifizierung Erfolgreich"
+AUTH_REQUIRED:     "Authentifizierung Erforderlich"
+
+# changes
+CHANGE_ADDED:      "add"
+CHANGE_UPDATED:    "upd"
+CHANGE_REMOVED:    "del"
+
+# Weekdays
+WEEKDAY_MONDAY:    "Montag"
+WEEKDAY_TUESDAY:   "Dienstag"
+WEEKDAY_WEDNESDAY: "Mittwoch"
+WEEKDAY_THURSDAY:  "Donnerstag"
+WEEKDAY_FRIDAY:    "Freitag"
+WEEKDAY_SATURDAY:  "Samstag"
+WEEKDAY_SUNDAY:    "Sonntag"
+
+# change courses
+ADDED_NOTHING:     "Keine Kurse dazugekommen."
+ADDED_SINGLE:      "Dazugekommener Kurs: {course}"
+ADDED_MULTIPLE:    "Dazugekommene Kurse: {courses}"
+REMOVED_SOME:      "Übergebene Kurse entfernt"
+REMOVED_ALL:       "Alle Kurse entfernt"
+CURRENT:           "Deine Kurse sind: {courses}"
+
+#Vp-Message
+VP_HEADER:         "Vertretungsplan"
+VP_CHANGE_HEADER:  "Vertretungsplanänderung"
+VP_DAY:            "{weekday} der {date}:"
+VP_CHANGE:         "{hour}. Std: {course} - {change}"
+VP_CHANGE_WOC:     "{hour}. Std: {change}"
+VP_DATE:           "%d.%m.%Y"
+
