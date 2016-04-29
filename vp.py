@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import sqlite3
 import urllib.request
 import os
@@ -85,6 +87,7 @@ class Vp():
 
         self.__database.commit()
 
+
     def isAuthorised(self, userId):
         """
         Returns if the given User is Authorised
@@ -169,7 +172,6 @@ class Vp():
                     .format(userId=userId, sid=sid))
             return (self.__translation.get("AUTH_FAILED"))
                 
-
 
     def addUserSubjects(self, userId, subjects):
         """
@@ -443,14 +445,30 @@ class Vp():
     def __getWebsiteEntryHours(self, cell):
         """
         This function gets a cell (string) with the hours
+        with the format: "1.", "0.-2.", "0./3.-5."
         and returns all as a tupel with this format:
         (hour1 (int), hour2 (int), ...)
         """
-        numbers = [str(i) for i in range(10)]
+        cell = cell.replace(".", "")
+        cell = cell.replace(" ", "")
+        cell = cell.replace("\t", "")
+        cell = cell.replace("\r", "")
+        cell = cell.replace("\n", "")
+        cell = cell.replace("\xa0", "")
+
+        if (len(cell)==1):
+            return (int (cell),)
+
         hours = []
-        for char in cell:
-            if (char in numbers):
-                hours.append(int(char))
+        hoursList = cell.split("/")
+
+        for i in range(len(hoursList)):
+            if ("-" in hoursList[i]):
+                hourRange = hoursList[i].split("-")
+                hours += [j for j in range(int(hourRange[0]), int(hourRange[1])+1)]
+            else:
+                hours += [int(hoursList[i])]
+
         return tuple(hours)
 
 
@@ -470,10 +488,10 @@ class Vp():
 
         # delete annoying chars
         for i in range(len(row)):
-            row[i] = row[i].replace("\t", "")
-            row[i] = row[i].replace("\r", "")
+            row[i] = row[i].replace("\t", " ")
+            row[i] = row[i].replace("\r", " ")
             row[i] = row[i].replace("\n", "")
-            row[i] = row[i].replace("\xa0", "")
+            row[i] = row[i].replace("\xa0", " ")
             while ("  " in row[i]):
                 row[i] = row[i].replace("  ", " ")
 
@@ -732,7 +750,7 @@ class Vp():
             if (course):
                 course += " " + change[4]
                 curMessage += "\n  " + self.__translation.get("VP_CHANGE")\
-                    .format(std = change[2],\
+                    .format(hour = change[2],\
                         course = course,\
                         lastchange = CHANGE_MESSAGES[change[5]].upper(),\
                         change = change[6])
@@ -766,7 +784,7 @@ class Vp():
             print("Update vp: sid isn't correct")
             return ([])
 
-        #check if the date has changed
+        # check if the date has changed
         if (self.__websiteHash == hashlib.sha256(vpDate).hexdigest()):
             # Website hasn't changed
             return ([])
@@ -789,5 +807,4 @@ class Vp():
             # first update -> all entries new -> do not send all to users
             return ([])
         return (self.__getUpdateMessages())
-
 
