@@ -1,0 +1,15 @@
+/help
+-Dies ist der inoffizielle Archenhold-Vertretungsplan-Bot.
+-
+-*Mit /vp kannst du deinen aktuellen Vertretungsplan anzeigen, sofern du den Bot konfiguriert hast.
+-*Mit /info zeigst du deine aktuellen Kurse bzw. Klassen an. Du solltest auch z. B. Q1 eintragen, wenn du dich im ersten Semester befindest.
+-*Mit /url fügst du deinen Login-URL hinzu. Diesen findest du unter http://pi.archenhold.de/service/vertretungsplan unter "Zugangscode auf andere Geräte übertragen". Kopiere einfach diesen Link und füge ihn ein.
+-*Mit /add fügst du einen deiner Kurse hinzu.
+-*Mit /del löschst du einen deiner Kurse.
+#*Diese werden dir als Tastatur zum Anklicken angezeigt.
+-Mit /help zeigst du diese Hilfe an.
+
+# notThere wird für noch nicht verfügbare Kommandos verwendet:
+/notThere
+-Das Kommando ist (noch) nicht verfügbar. Sieh dir doch die Hilfe mit /help an.
+-Einige Kommandos könnten noch nicht programmiert sein.
