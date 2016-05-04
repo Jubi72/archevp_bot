@@ -5,6 +5,10 @@ import telepot as tp
 import vp
 
 class Archebot:
+    """
+    runs a bot wich can read the vertretungsplan and other things
+    needed files: configuration file, answer file
+    """
 
     def __init__ (self):
         """
@@ -15,13 +19,15 @@ class Archebot:
         
         conffile = open("avp.cfg","r") # configuration file name: avp.cfg
         conflines = conffile.readlines()
+        conffile.close()
+        
         for line in conflines:
             if line[0] == "#": continue # skip outcommented lines
-            if line[0:14] == "telegram_token": # telegram_token has to be first word in line without whitespace
-                token = line[16:-2] # characters between the "
+            if line.split() == []: continue # skip empty lines
+            elif line.split()[0] == "telegram_token": # telegram_token has to be first word in line
+                token = line.split()[1][1:-1] # characters between the "
                 break # don't check other lines -> first appearance is valid
         print(token)
-        conffile.close()
         
         self.__bot = tp.Bot(token)
         self.__setcuroff()
@@ -58,9 +64,9 @@ class Archebot:
             elif sent.split()[0] == "/info":
                 self.__showInfo(u_id)
             elif sent.split()[0] == "/url":
-                self.__setURL(u_id)
+                self.__setURL(msg)
             elif sent.split()[0] == "/add":
-                self.__addUser(u_id)
+                self.__addUser(msg)
             elif sent.split()[0] == "/del":
                 self.__delUser(u_id)
             else:
@@ -70,42 +76,48 @@ class Archebot:
 
     def __showVp (self, u_id): # TODO program
         """
-        sends current vertretungsplan to user with telegram id u_id
+        pre:  u_id is valid telegram user id
+        post: current vertretungsplan is sent to u_id user
         """
         self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notThere"))
 
     def __showInfo (self, u_id): # TODO program
         """
-        sends inserted courses to user with telegram id u_id
+        pre:  u_id is valid telegram user id
+        post: registered courses are sent to u_id user
         """
         self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notThere"))
 
-    def __setURL (self, u_id): # TODO program
+    def __setURL (self, msg): # TODO program
         """
-        sets the sid of the user with telegram id u_id
+        pre:  msg is message sent by user in valid telepot message format
+        post: sid of the user is set and if did not happen before added to database
         """
+        u_id = msg[u'message'][u'from'][u'id']
         self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notThere"))
 
     def __addUser (self, u_id): # TODO program
         """
-        adds the user with the telegram id u_id into our database
+        pre:  u_id is valid telegram user id
+        post: u_id user is added into our database
         """
         self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notThere"))
 
     def __delUser (self, u_id): # TODO program
         """
-        deletes the user with the telegram id u_id from our database
+        pre:  u_id is valid telegram user id
+        post: u_id user is deleted from our database (if confirmed by user)
         """
         self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notThere"))
 
     def __readans (self, cmd):
         """
-        reads commando-answers from answers file that are static text to response 
+        pre:  cmd is string, optimum specified in answers file
+        post: commando-answer from answer file is returned (not sent!)
         """
         ansfile = open("answers.txt", "r") # answers file is answers.txt
         anslines = ansfile.readlines()
         ansfile.close()
-        print("will read cmd: " + cmd)
         
         anslino = len(anslines) # number of lines in answers file
         in_cmd = False
@@ -119,6 +131,8 @@ class Archebot:
             else:
                 if anslines[i][0] == "/": # if beginning of line fits beginning of command lines
                     if anslines[i][1:].strip() == cmd: in_cmd = True # following text belongs to command specific text output
+
+        if anstext == "": anstext = self.__readans ("notThere") # rescue: not empty string but message for not available command sent
         
         return anstext # EOF rescue return
                 
