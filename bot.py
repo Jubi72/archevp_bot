@@ -18,18 +18,14 @@ class Archebot:
         self.__curoff = 0
         
         conffile = open("avp.cfg","r") # configuration file name: avp.cfg
-        conflines = conffile.readlines()
+        self.__conflines = conffile.readlines()
         conffile.close()
-        
-        for line in conflines:
-            if line[0] == "#": continue # skip outcommented lines
-            if line.split() == []: continue # skip empty lines
-            elif line.split()[0] == "telegram_token": # telegram_token has to be first word in line
-                token = line.split()[1][1:-1] # characters between the "
-                break # don't check other lines -> first appearance is valid
+
+        self.__token = self.__confread("telegram_token")
         print(token)
-        
-        self.__bot = tp.Bot(token)
+        self.__bot = tp.Bot(self.__token)
+
+        self.__initvp()
         self.__setcuroff()
         
     def handle(self):
@@ -41,6 +37,19 @@ class Archebot:
         if response != []:
             for message in response: self.__response(message)
             self.__setcuroff()
+    
+    def __initvp (self):
+        """
+        inits the vp 
+        """
+        website = self.__confread("vp_addr")
+        sid = self.__confread("vp_sid")
+        db = self.__confread("vp_database")
+        datesite = self.__confread("vpdate_addr")
+        if "" in [website, sid, db, datesite]:
+            print("Error: One of the vp conf values is empty")
+
+        self.__vp = vp.Vp(website, datesite, sid, db)
             
     def __setcuroff(self):
         """
@@ -53,9 +62,20 @@ class Archebot:
         else:
             self.__curoff = allup[-1][u'update_id'] + 1
 
+    def __confread (self, var):
+        """
+        reads the variable got in config file
+        """
+        for line in self.__conflines:
+            if line[0] == "#": continue # skip outcommented lines
+            if line.split() == []: continue # skip empty lines
+            elif line.split()[0] == var: # var has to be first word in line
+                return line.split()[1] # do not read other lines, only first appearance is valid; no whitespace in value allowed
+
     def __response (self, msg):
         sent = msg[u'message'][u'text'] # message the bot received
         u_id = msg[u'message'][u'from'][u'id'] # user-id = chat-id
+        print(u_id, msg[u'message'][u'from'][u'username'])
         if sent[0] == "/":
             if sent.split()[0] == "/help":
                 self.__bot.sendMessage(chat_id = u_id, text = self.__readans("help"))
@@ -66,9 +86,13 @@ class Archebot:
             elif sent.split()[0] == "/url":
                 self.__setURL(msg)
             elif sent.split()[0] == "/add":
-                self.__addUser(msg)
+                self.__addSubj(msg)
             elif sent.split()[0] == "/del":
+                self.__delSubj(msg)
+            elif sent.split()[0] == "/delme":
                 self.__delUser(u_id)
+            elif sent.split()[0] == "/delMeREALLYiAmSUREandCAREFUL":
+                self.__delUserReally(u_id)
             else:
                 self.__bot.sendMessage (chat_id = u_id, text = self.__readans("NotThere"))
         else:
@@ -81,34 +105,63 @@ class Archebot:
         """
         self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notThere"))
 
-    def __showInfo (self, u_id): # TODO program
+    def __showInfo (self, u_id):
         """
         pre:  u_id is valid telegram user id
         post: registered courses are sent to u_id user
+              if user not registered error msg is sent
         """
-        self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notThere"))
+        if self.__vp.isAuthorised(u_id):
+            self.__bot.sendMessage(chatid = u_id, text = self.__vp.getUserInfo(u_id))
+        else:
+            self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notReg"))
 
-    def __setURL (self, msg): # TODO program
+    def __setURL (self, msg):
         """
         pre:  msg is message sent by user in valid telepot message format
         post: sid of the user is set and if did not happen before added to database
         """
         u_id = msg[u'message'][u'from'][u'id']
+        url = msg[u'message'][u'text'].split()[1]
+        resp = self.__vp.checkUser(u_id, text).replace("E", "e")
+        self.__bot.sendMessage(chat_id = u_id, text = resp)
+
+    def __addSubj (self, msg): # TODO program
+        """
+        pre:  msg is message sent by user in valid telepot message format
+        post: subjects are added to our database
+        """
         self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notThere"))
 
-    def __addUser (self, u_id): # TODO program
+    def __delSubj (self, msg): # TODO program
         """
-        pre:  u_id is valid telegram user id
-        post: u_id user is added into our database
+        pre:  msg is message sent by user in valid telepot message format
+        post: comma separated subjects are deleted from our database
         """
         self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notThere"))
 
-    def __delUser (self, u_id): # TODO program
+    def __resetSubj (self, u_id): # TODO program
         """
         pre:  u_id is valid telegram user id
-        post: u_id user is deleted from our database (if confirmed by user)
+        post: all subjects are deleted from our database
         """
         self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notThere"))
+
+    def __delUser (self, u_id):
+        """
+        pre:  u_id is valid telegram user id
+        post: confirmation is asked by user, command for real deletion is sent
+        """
+        self.__bot.sendMessage(chat_id = u_id, text = self.__readans("delUser"))
+
+    def __delUserReally (self, u_id): # TODO program (vp.py)
+        """
+        pre:  u_id is valid telegram user id
+        post: u_id user is deleted from our database
+        """
+        # TODO has to be programmed in vp.py
+        self.__bot.sendMessage(chat_id = u_id, text = self.__readans("notThere"))
+        #self.__bot.sendMessage(chat_id = u_id, text = self.__readans("userDeleted"))
 
     def __readans (self, cmd):
         """

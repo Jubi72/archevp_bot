@@ -1,15 +1,28 @@
 /help
 -Dies ist der inoffizielle Archenhold-Vertretungsplan-Bot.
 -
--*Mit /vp kannst du deinen aktuellen Vertretungsplan anzeigen, sofern du den Bot konfiguriert hast.
--*Mit /info zeigst du deine aktuellen Kurse bzw. Klassen an. Du solltest auch z. B. Q1 eintragen, wenn du dich im ersten Semester befindest.
--*Mit /url fügst du deinen Login-URL hinzu. Diesen findest du unter http://pi.archenhold.de/service/vertretungsplan unter "Zugangscode auf andere Geräte übertragen". Kopiere einfach diesen Link und füge ihn ein.
--*Mit /add fügst du einen deiner Kurse hinzu.
--*Mit /del löschst du einen deiner Kurse.
-#*Diese werden dir als Tastatur zum Anklicken angezeigt.
--Mit /help zeigst du diese Hilfe an.
+-* Mit /vp kannst du deinen aktuellen Vertretungsplan anzeigen, sofern du den Bot konfiguriert hast.
+-* Mit /info zeigst du deine aktuellen Kurse bzw. Klassen an. Du solltest auch z. B. Q1 eintragen, wenn du dich im ersten Semester befindest.
+-* Mit /url fügst du deinen Login-URL hinzu. Diesen findest du unter http://m.archenhold.de/service/vertretungsplan unter "Zugangscode auf andere Geräte übertragen". Kopiere einfach diesen Link und füge ihn ein.
+-* Mit /add fügst du einen deiner Kurse hinzu.
+-* Mit /del löschst du einen deiner Kurse.
+#* Diese werden dir als Tastatur zum Anklicken angezeigt.
+-* Mit /help zeigst du diese Hilfe an.
 
 # notThere wird für noch nicht verfügbare Kommandos verwendet:
 /notThere
 -Das Kommando ist (noch) nicht verfügbar. Sieh dir doch die Hilfe mit /help an.
 -Einige Kommandos könnten noch nicht programmiert sein.
+
+# notReg wird in /info verwendet, wenn der Benutzer noch nicht in unserer registriert ist
+/notReg
+-Du bist leider noch nicht in unserer Datenbank registriert. Setze mit /url deinen Link zum Vertretungsplan und füge mit /add deine Klasse/Kurse hinzu.
+
+# delUser ist die erste Nachricht, nach der bestätigt werden muss, dass der Benutzer gelöscht werden will
+/delUser
+-Sei vorsichtig! Wenn du wirklich deinen Benutzernamen aus unserer Datenbank löschen und den Vertretungsplan nicht mehr erhalten willst, klicke auf das Kommando unten. Wenn nicht, dann lösche diese Nachricht lieber, damit du nicht aus Versehen darauf kommst.
+-/delMeREALLYiAmSUREandCAREFUL
+
+# Benutzer ist nun gelöscht
+/userDeleted
+-Du bist nun aus unserer Datenbank gelöscht. Schönen Tag noch :-)
