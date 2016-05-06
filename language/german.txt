@@ -1,0 +1,46 @@
+# Translation of messages into the German language
+
+#Authentification messages
+[user]
+AUTH_FAILED:     Authentifizierung fehlgeschlagen
+AUTH_SUCCESSFUL: Authentifizierung erfolgreich
+AUTH_REQUIRED:   Authentifizierung erforderlich
+USER_DELETED:    Du bist nun aus unserer Datenbank gelöscht. Schönen Tag noch :-)
+USER_DELETE_UID: Sei vorsichtig!
+                 Wenn du wirklich deinen Benutzernamen aus unserer Datenbank löschen und
+                 den Vertretungsplan nicht mehr erhalten willst gib hinter das Kommando
+                 deine id ein ("/del {userId}").
+
+[change]
+ADDED:           neu
+UPDATED:         upd
+REMOVED:         weg
+
+[weekday]
+MONDAY:          Montag
+TUESDAY:         Dienstag
+WEDNESDAY:       Mittwoch
+THURSDAY:        Donnerstag
+FRIDAY:          Freitag
+SATURDAY:        Samstag
+SUNDAY:          Sonntag
+
+[courses]
+ADDED_NOTHING:   Keine Kurse dazugekommen.
+ADDED_SINGLE:    Dazugekommener Kurs: {course}
+ADDED_MULTIPLE:  Dazugekommene Kurse: {courses}
+REMOVED_SOME:    Übergebene Kurse entfernt
+REMOVED_ALL:     Alle Kurse entfernt
+CURRENT:         Deine Kurse sind: {courses}
+
+[vp]
+HEADER:          Vertretungsplan
+CHANGE_HEADER:   Vertretungsplanänderung
+DAY:             {weekday} der {date}:
+CHANGE:          {hour}. Std: {course} - {change}
+CHANGE_WOC:      {hour}. Std: {change}
+CHANGE_NEW:      {lastchange} {hour}. Std: {course} - {change}
+CHANGE_NEW_WOC:  {lastchange} {hour}. Std: {change}
+DATE:            %%d.%%m.%%Y
+NO_CHANGES:      Keine Vertretungen geplant
+

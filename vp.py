@@ -8,7 +8,7 @@ import time
 from bs4 import BeautifulSoup
 import hashlib
 import calendar
-from translation import Translation
+import configparser
 
 VALID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890./ "
 
@@ -16,7 +16,7 @@ CHANGE_ADDED = 0
 CHANGE_UPDATED = 1
 CHANGE_REMOVED = 2
 
-CHANGE_MESSAGES = ["CHANGE_ADDED", "CHANGE_UPDATED", "REMOVED"]
+CHANGE_MESSAGES = ["ADDED", "UPDATED", "REMOVED"]
 
 class Vp():
     def __init__(self, website, websiteVpDate, sid, database):
@@ -33,7 +33,8 @@ class Vp():
         self.__sid = sid
         self.__websiteHash = ""
         self.__firstUpdate = False
-        self.__translation = Translation("./language/", "german")
+        self.__translation = configparser.ConfigParser()
+        self.__translation.read("language/german.txt")
         if (createDatabase):
             self.__firstUpdate = True
             self.__createDatabase()
@@ -109,7 +110,7 @@ class Vp():
         if (not self.__checkInput(sid)):
             print("Authentification failed: input='{url}'"\
                     .format(url=url))
-            return (self.__translation.get("AUTH_FAILED"))
+            return (self.__translation['user']["AUTH_FAILED"])
         page = urllib.request.urlopen(self.__website.format(sid = sid))\
                 .read().decode('cp1252')
         
@@ -150,7 +151,7 @@ class Vp():
                 self.__cursor.execute(sql_command, (userId,))
                 
                 self.__database.commit()
-                return (self.__translation.get("AUTH_SUCCESSFUL"))
+                return (self.__translation["user"]["AUTH_SUCCESSFUL"])
 
             else:
                 prevUsername = prevUsername[0]
@@ -165,12 +166,12 @@ class Vp():
                     self.__cursor.execute(sql_command, (username, userId))
                     self.__database.commit()
 
-                return (self.__translation.get("AUTH_SUCCESSFUL"))
+                return (self.__translation["user"]["AUTH_SUCCESSFUL"])
 
         else:
             print("User authentification failed id={userId} sid={sid}"\
                     .format(userId=userId, sid=sid))
-            return (self.__translation.get("AUTH_FAILED"))
+            return (self.__translation["user"]["AUTH_FAILED"])
 
 
     def delUser(self, userId, userInput):
@@ -178,11 +179,11 @@ class Vp():
         Delete the user from the databse
         """
         if (not self.isAuthorised(userId)):
-            return (self.__translation.get("AUTH_REQUIRED"))
+            return (self.__translation["user"]["AUTH_REQUIRED"])
 
         if (str(userId) != userInput.strip()):
-            return (self.__translation.get("USER_DELETE_UID")
-                    .format(userId = userId))
+            return (self.__translation["user"]["USER_DELETE_UID"]
+                    .format(userId = userId).replace("\n", " "))
 
         # Delete user courses
         sql_command = """
@@ -199,7 +200,7 @@ class Vp():
         self.__cursor.execute(sql_command, (userId,))
         self.__database.commit()
 
-        return (self.__translation.get("USER_DELETED"))
+        return (self.__translation["user"]["USER_DELETED"])
 
 
     def addUserSubjects(self, userId, subjects):
@@ -207,7 +208,7 @@ class Vp():
         add all given subjects to the user
         """
         if (not self.isAuthorised(userId)):
-            return (self.__translation.get("AUTH_REQUIRED"))
+            return (self.__translation["user"]["AUTH_REQUIRED"])
 
         subjects = subjects.strip().split(",")
         for i in range(len(subjects)):
@@ -264,14 +265,14 @@ class Vp():
                 +" equal="+str(equal)+" failed="+str(failed))
         
         if (added == 0):
-            return (self.__translation.get("ADDED_NOTHING"))
+            return (self.__translation["courses"]["ADDED_NOTHING"])
 
         elif (added == 1):
-            return (self.__translation.get("ADDED_SINGLE")\
+            return (self.__translation["courses"]["ADDED_SINGLE"]\
                     .format(course=addedSubjects[:-2]))
 
         else:
-            return (self.__translation.get("ADDED_MULTIPLE")\
+            return (self.__translation["courses"]["ADDED_MULTIPLE"]\
                     .format(courses = addedSubjects[:-2]))
 
 
@@ -280,7 +281,7 @@ class Vp():
         delete all given subjects from the user
         """
         if (not self.isAuthorised(userId)):
-            return (self.__translation.get("AUTH_REQUIRED"))
+            return (self.__translation["user"]["AUTH_REQUIRED"])
 
         subjects = subjects.split(",")
         oldSubjects = []
@@ -316,7 +317,7 @@ class Vp():
             .format(userId = userId,
                 removed = removed,
                 failed = failed))
-        return (self.__translation.get("REMOVED_SOME"))
+        return (self.__translation["courses"]["REMOVED_SOME"])
         
 
     def resetUserSubjects(self, userId):
@@ -324,7 +325,7 @@ class Vp():
         deletes all subjects from the user
         """
         if (not self.isAuthorised(userId)):
-            return (self.__translation.get("AUTH_REQUIRED"))
+            return (self.__translation["user"]["AUTH_REQUIRED"])
 
         sql_command = """
             DELETE FROM course
@@ -334,7 +335,7 @@ class Vp():
         print("User subjects del userId="+str(userId))
         self.__cursor.execute(sql_command, (userId,))
         self.__database.commit()
-        return (self.__translation.get("REMOVED_ALL"))
+        return (self.__translation["courses"]["REMOVED_ALL"])
 
 
     def getUserInfo(self, userId):
@@ -343,20 +344,22 @@ class Vp():
         all subjects of the user and an information
         """
         if (not self.isAuthorised(userId)):
-            return (self.__translation.get("AUTH_REQUIRED"))
+            return (self.__translation["user"]["AUTH_REQUIRED"])
 
 
         sql_command = """
-            SELECT course 
+            SELECT course, lessonStart
             FROM course
             WHERE userId = ?
+            AND course != ""
         """
         subjects = ""
         self.__cursor.execute(sql_command, (userId,))
-        for (subject,) in self.__cursor.fetchall():
-            subjects += "\n" + subject 
+        for (subject, lesson) in self.__cursor.fetchall():
+            subjects += "\n * " + subject + " " + lesson[:-1]
 
-        return (self.__translation.get("CURRENT").format(courses=subjects))
+        return (self.__translation["courses"]["CURRENT"]
+                    .format(courses = subjects))
         
 
     def getUserStatus(self, userId):
@@ -364,7 +367,7 @@ class Vp():
         returns the current vp Status from the user as a message string
         """
         if (not self.isAuthorised(userId)):
-            return (self.__translation.get("AUTH_REQUIRED"))
+            return (self.__translation["user"]["AUTH_REQUIRED"])
  
         sql_command = """
             SELECT date, hour, entry.course, lesson, change
@@ -379,34 +382,35 @@ class Vp():
         self.__cursor.execute(sql_command,\
                 (userId, datetime.date(datetime.now()), CHANGE_REMOVED))
         
+        allChanges = self.__cursor.fetchall()
+
+        if (allChanges == []):
+            return (self.__translation["vp"]["NO_CHANGES"])
+
         curDate = ""
-        curMessage = ""
-        message = self.__translation.get("VP_HEADER")
-        for change in self.__cursor.fetchall():
+        message = self.__translation["vp"]["HEADER"]
+        for change in allChanges:
             if (curDate != change[0]):
-                continue
                 curDate = change[0]
-                message += "\n\n" + self.__translation.get("VP_DAY")\
-                  .format(weekday = self.__translation.get("WEEKDAY_"+calendar.\
-                     day_name[datetime.strptime(curDate, "%Y-%m-%d").weekday()]\
-                        .upper()),\
-                     date = datetime.strptime(curDate, "%Y-%m-%d")\
-                        .strftime(self.__translation.get("VP_DATE")))
-        
-            course = change[3]
+                message += "\n " + self.__translation["vp"]["DAY"]\
+                      .format(weekday = self.__translation['weekday'][calendar.\
+                         day_name[datetime.strptime(curDate, "%Y-%m-%d").weekday()]\
+                            .upper()],\
+                         date = datetime.strptime(curDate, "%Y-%m-%d")\
+                            .strftime(self.__translation['vp']["DATE"]))
+
+            course = change[2]
             if (course):
-                course += " " + change[4]
-                curMessage += "\n  " + self.__translation.get("VP_CHANGE")\
-                    .format(std = change[2],\
+                course += " " + change[3]
+                message += "\n  " + self.__translation["vp"]["CHANGE"]\
+                    .format(hour = change[1],\
                         course = course,\
-                        lastchange = CHANGE_MESSAGES[change[5]].upper(),\
-                        change = change[6])
+                        change = change[4])
 
             else:
-                curMessage += "\n  " + self.__translation.get("VP_CHANGE_WOC")\
-                    .format(std = change[2],\
-                        lastchange = CHANGE_MESSAGES[change[5]].upper(),\
-                        change = change[6])
+                message += "\n  * " + self.__translation["vp"]["CHANGE_WOC"]\
+                    .format(hour = change[1],\
+                        change = change[4])
 
         return message
 
@@ -767,25 +771,25 @@ class Vp():
                     messages.append((curUser, curMessage))
                 curUser = change[0]
                 curDate = ""
-                curMessage = self.__translation.get("VP_CHANGE_HEADER")
+                curMessage = self.__translation["vp"]["CHANGE_HEADER"]
             if (curDate != change[1]):
                 curDate = change[1]
-                curMessage += "\n" + self.__translation.get("VP_DAY")\
-                    .format(weekday = self.__translation.get("WEEKDAY_"+\
-                                calendar.day_name[datetime.strptime(curDate, "%Y-%m-%d").weekday()].upper()),\
-                            date = datetime.strptime(curDate, "%Y-%m-%d").strftime(self.__translation.get("VP_DATE")))
+                curMessage += "\n " + self.__translation["vp"]["DAY"]\
+                    .format(weekday = self.__translation["weekday"]
+                                [calendar.day_name[datetime.strptime(curDate, "%Y-%m-%d").weekday()].upper()],\
+                            date = datetime.strptime(curDate, "%Y-%m-%d").strftime(self.__translation["vp"]["DATE"]))
             
             course = change[3]
             if (course):
                 course += " " + change[4]
-                curMessage += "\n  " + self.__translation.get("VP_CHANGE")\
+                curMessage += "\n  " + self.__translation["vp"]["CHANGE_NEW"]\
                     .format(hour = change[2],\
                         course = course,\
-                        lastchange = CHANGE_MESSAGES[change[5]].upper(),\
+                        lastchange = self.__translation["change"][CHANGE_MESSAGES[change[5]].upper()],\
                         change = change[6])
 
             else:
-                curMessage += "\n  " + self.__translation.get("VP_CHANGE_WOC")\
+                curMessage += "\n  " + self.__translation["vp"]["CHANGE_WOC"]\
                     .format(std = change[2],\
                         lastchange = CHANGE_MESSAGES[change[5]].upper(),\
                         change = change[6])
