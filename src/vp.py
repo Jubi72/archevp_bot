@@ -19,13 +19,13 @@ CHANGE_REMOVED = 2
 CHANGE_MESSAGES = ["ADDED", "UPDATED", "REMOVED"]
 
 class Vp():
-    def __init__(self, website, websiteVpDate, sid, database):
+    def __init__(self, website, websiteVpDate, sid, database, language):
         """
         initialize Variables and the database
         """
         self.__website = website
         self.__websiteVpDate = websiteVpDate
-        self.__databaseFile = database
+        self.__databaseFile = "data/" + database
         createDatabase = not os.path.exists(self.__databaseFile)
         self.__database = sqlite3.connect(self.__databaseFile)
         self.__cursor = self.__database.cursor()
@@ -34,7 +34,8 @@ class Vp():
         self.__websiteHash = ""
         self.__firstUpdate = False
         self.__translation = configparser.ConfigParser()
-        self.__translation.read("language/german.txt")
+        language = "data/language" + language + ".txt"
+        self.__translation.read(language)
         if (createDatabase):
             self.__firstUpdate = True
             self.__createDatabase()
