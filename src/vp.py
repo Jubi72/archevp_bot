@@ -103,6 +103,16 @@ class Vp():
         return (self.__cursor.fetchone() != None)
 
 
+    def getUserHelp(self, userId):
+        """
+        Send the user different help depending if they are registered
+        """
+        if (self.isAuthorised(userId)):
+            return self.__translation['vp']['HELP_REGISTERED']
+        else:
+            return self.__translation['vp']['HELP_NEWBIE']
+
+
     def checkUser(self, userId, url):
         """
         checks whether a user is valid and add this user to the database 

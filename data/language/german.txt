@@ -9,7 +9,21 @@ USER_DELETED:    Du bist nun aus unserer Datenbank gelöscht. Schönen Tag noch 
 USER_DELETE_UID: Sei vorsichtig!
                  Wenn du wirklich deinen Benutzernamen aus unserer Datenbank löschen und
                  den Vertretungsplan nicht mehr erhalten willst gib hinter das Kommando
-                 deine id ein ("/del {userId}").
+                 deine id ein ("/delme {userId}").
+HELP_NEWBIE:
+ Dies ist der inoffizielle Archenhold-Vertretungsplan-Bot.
+  * Mit /url fügst du deinen Login-URL hinzu. Diesen findest du unter http://m.archenhold.de/service/vertretungsplan unter "Zugangscode auf andere Geräte übertragen". Kopiere einfach diesen Link und füge ihn ein.
+  * Mit /help zeigst du diese Hilfe an.
+
+HELP_REGISTERED:
+ Dies ist der inoffizielle Archenhold-Vertretungsplan-Bot.
+ * Mit /vp kannst du deinen aktuellen Vertretungsplan anzeigen, sofern du den Bot konfiguriert hast.
+ * Mit /info zeigst du deine aktuellen Kurse bzw. Klassen an. Du solltest auch z. B. Q1 eintragen, wenn du dich im ersten Semester befindest.
+ * Mit /add fügst du einen deiner Kurse hinzu.
+ * Mit /del löschst du einen deiner Kurse.
+ * Mit /delme kannst du deinen Benutzer löschen
+ * Mit /help zeigst du diese Hilfe an.
+
 
 [change]
 ADDED:           neu
