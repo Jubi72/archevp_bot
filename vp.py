@@ -171,14 +171,43 @@ class Vp():
             print("User authentification failed id={userId} sid={sid}"\
                     .format(userId=userId, sid=sid))
             return (self.__translation.get("AUTH_FAILED"))
-                
+
+
+    def delUser(self, userId, userInput):
+        """
+        Delete the user from the databse
+        """
+        if (not self.isAuthorised(userId)):
+            return (self.__translation.get("AUTH_REQUIRED"))
+
+        if (str(userId) != userInput.strip()):
+            return (self.__translation.get("USER_DELETE_UID")
+                    .format(userId = userId))
+
+        # Delete user courses
+        sql_command = """
+            DELETE FROM course
+            WHERE userId = ?
+        """
+        self.__cursor.execute(sql_command, (userId,))
+
+        # Delete user from database
+        sql_command = """
+            DELETE FROM user
+            WherE userId = ?
+        """
+        self.__cursor.execute(sql_command, (userId,))
+        self.__database.commit()
+
+        return (self.__translation.get("USER_DELETED"))
+
 
     def addUserSubjects(self, userId, subjects):
         """
         add all given subjects to the user
         """
         if (not self.isAuthorised(userId)):
-            return ("Anmeldung erforderlich")
+            return (self.__translation.get("AUTH_REQUIRED"))
 
         subjects = subjects.strip().split(",")
         for i in range(len(subjects)):
@@ -774,7 +803,7 @@ class Vp():
         try:
             page = urllib.request.urlopen(self.__website\
                 .format(sid=self.__sid)).read().decode("cp1252")
-            page = open("vp.html", "rb").read().decode("cp1252")
+            #page = open("vp.html", "rb").read().decode("cp1252")
             vpDate = urllib.request.urlopen(self.__websiteVpDate).read()
         except:
             print("Update vp: Error while loading vp website")
