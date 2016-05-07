@@ -20,7 +20,7 @@ class Archebot(tp.Bot):
         self.__config = configparser.ConfigParser()
         self.__config.read(configfile)
         print(self.__config['telegram']['token'])
-        super().__init__(self.__config['telegram']['token'], *args, *kwargs)
+        super().__init__(self.__config['telegram']['token'], *args, **kwargs)
 
         # read the telegram config
         self.__token   = self.__config['telegram']['token']
@@ -55,7 +55,9 @@ class Archebot(tp.Bot):
         """
         text = msg[u'message'][u'text'] # message the bot received
         u_id = msg[u'message'][u'from'][u'id'] # user-id = chat-id
-        print (u_id, msg[u'message'][u'from'][u'username'])
+        username = msg[u'message'][u'from'][u'username']
+        debugText = text.replace("\\", "\\\\").replace("\n", "\\n")
+        print (username, "("+str(u_id)+"):", debugText)
 
         command = text.split(" ", 1)
         if len(command) == 1:
@@ -79,7 +81,12 @@ class Archebot(tp.Bot):
         elif command[0] == "delme":
             self.__delUser(u_id, command[1])
         else:
-            self.__bot.sendMessage(chat_id=u_id, text = "Hi, " + (msg[u'message'][u'from'][u'first_name'] if msg[u'message'][u'from'][u'first_name'] != "" else msg[u'message'][u'from'][u'username']))
+            message = "Hi, "
+            name = msg[u'message'][u'from'][u'first_name']
+            if not name:
+                name = msg[u'message'][u'from'][u'username']
+            message += name
+            self.__bot.sendMessage(chat_id=u_id, text = message)
 
     def __sendHelp(self, u_id):
         response = self.__vp.getUserHelp(u_id)
