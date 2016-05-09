@@ -2,6 +2,7 @@ import telepot as tp
 import configparser
 from src.vp import Vp
 import logging
+import sys
 
 class Archebot(tp.Bot):
     """
