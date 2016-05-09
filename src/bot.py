@@ -1,9 +1,7 @@
-﻿#!/usr/bin/python
-
-# from pprint import pprint # better error printing in msg-dics 
 import telepot as tp
 import configparser
 from src.vp import Vp
+import logging
 
 class Archebot(tp.Bot):
     """
@@ -19,20 +17,38 @@ class Archebot(tp.Bot):
         # Parse the config file
         self.__config = configparser.ConfigParser()
         self.__config.read(configfile)
-        print(self.__config['telegram']['token'])
-        super().__init__(self.__config['telegram']['token'], *args, **kwargs)
-
-        # read the telegram config
-        self.__token   = self.__config['telegram']['token']
-        self.__logfile = self.__config['telegram']['logfile']
+        self.__readConfig()
+        super().__init__(self.__token, *args, **kwargs)
 
         # Set the telegram-Bot variable
         self.__bot = tp.Bot(self.__token)
 
+        # Init the logger
+        self.__initlog()
+
         # Init the vp class
         self.__initvp()
 
-        
+
+    def __readConfig(self):
+        """
+        read the telegram config
+        """
+        # Token
+        self.__token = ""
+        if self.__config.has_option('telegram', 'token'):
+            self.__token   = self.__config['telegram']['token']
+
+        # Logfile
+        self.__logfile = ""
+        if self.__config.has_option('debug', 'logfile'):
+            self.__logfile = self.__config['debug']['logfile']
+
+        # Debuglevel Debug
+        self.__debug = False
+        if self.__config.has_option('debug', 'debug'):
+            self.__debug = self.__config.getboolean('debug', 'debug')
+
     def __initvp (self):
         """
         inits the vp 
@@ -43,10 +59,23 @@ class Archebot(tp.Bot):
         vpdate   = self.__config['vp']['vpdate']
         language = self.__config['vp']['language']
         if "" in [website, sid, database, vpdate, language]:
-            print("Error: One of the vp conf values is empty")
+            logging.critical ("Error: One of the vp conf values is empty")
 
         self.__vp = Vp(website, vpdate, sid, database, language)
 
+
+    def __initlog (self):
+        """
+        inits the log function
+        """
+        debugLevel = logging.INFO
+        if self.__debug:
+            debugLevel = logging.DEBUG
+
+        # Set the settings of the logging
+        logging.basicConfig(format='%(asctime)s|%(levelname)s|%(message)s',\
+                            filename=self.__logfile,\
+                            level=debugLevel)
 
     def handle(self, msg):
         """
@@ -57,7 +86,7 @@ class Archebot(tp.Bot):
         u_id = msg[u'message'][u'from'][u'id'] # user-id = chat-id
         username = msg[u'message'][u'from'][u'username']
         debugText = text.replace("\\", "\\\\").replace("\n", "\\n")
-        print (username, "("+str(u_id)+"):", debugText)
+        logging.info (username, "("+str(u_id)+"):", debugText)
 
         command = text.split(" ", 1)
         if len(command) == 1:
@@ -66,27 +95,31 @@ class Archebot(tp.Bot):
         if command[0][0] == "/":
             command[0] = command[0].replace("/", 1)
 
-        if command[0] == "help":
-            self.__sendHelp(u_id)
-        elif command[0] == "vp":
-            self.__showVp(u_id)
-        elif command[0] == "info":
-            self.__showInfo(u_id)
-        elif command[0] == "url":
-            self.__setURL(u_id, command[1])
-        elif command[0] == "add":
-            self.__addSubj(u_id, command[1])
-        elif command[0] == "del":
-            self.__delSubj(u_id, command[1])
-        elif command[0] == "delme":
-            self.__delUser(u_id, command[1])
-        else:
-            message = "Hi, "
-            name = msg[u'message'][u'from'][u'first_name']
-            if not name:
-                name = msg[u'message'][u'from'][u'username']
-            message += name
-            self.__bot.sendMessage(chat_id=u_id, text = message)
+        try:
+            if command[0] == "help":
+                self.__sendHelp(u_id)
+            elif command[0] == "vp":
+                self.__showVp(u_id)
+            elif command[0] == "info":
+                self.__showInfo(u_id)
+            elif command[0] == "url":
+                self.__setURL(u_id, command[1])
+            elif command[0] == "add":
+                self.__addSubj(u_id, command[1])
+            elif command[0] == "del":
+                self.__delSubj(u_id, command[1])
+            elif command[0] == "delme":
+                self.__delUser(u_id, command[1])
+            else:
+                message = "Hi, "
+                name = msg[u'message'][u'from'][u'first_name']
+                if not name:
+                    name = msg[u'message'][u'from'][u'username']
+                message += name
+                self.__bot.sendMessage(chat_id=u_id, text = message)
+        except:
+            logging.critical ("Unexpected Error")
+            logging.critical (sys.exc_info()[0])
 
     def __sendHelp(self, u_id):
         response = self.__vp.getUserHelp(u_id)
@@ -148,4 +181,17 @@ class Archebot(tp.Bot):
         """
         response = self.__vp.delUser(u_id, command)
         self.__bot.sendMessage(chat_id = u_id, text = response)
+
+    def update(self):
+        """
+        post: all updates from the vp are sent to the users
+        """
+        messages = self.__vp.getUpdates()
+        for message in messages:
+            self.__bot.sendMessage(chat_id=message[0], text=message[1])
+
+    def notifications(self):
+        """
+        post: all daily notifications are sent to the users
+        """
 

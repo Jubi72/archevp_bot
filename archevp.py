@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!bin/python
 
 import time
 from src.bot import Archebot
@@ -15,8 +15,9 @@ def main():
     archevp = Archebot(args.f)
     archevp.message_loop()
     while True:
+        archevp.update()
+        archevp.notifications()
         time.sleep(10)
-        #TODO: send daily notifications
 
 
 if __name__ == "__main__":

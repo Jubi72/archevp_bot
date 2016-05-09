@@ -1,5 +1,19 @@
+# config files
 *.cfg
+*.log
+
+# Python files
 *.pyc
 __pycache__
+
+# temp vim files
 *.swp
+
+# database files
 *.db
+
+# virtual env
+bin/
+lib/
+include/
+

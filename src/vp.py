@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 import sqlite3
 import urllib.request
 import os
@@ -9,6 +7,7 @@ from bs4 import BeautifulSoup
 import hashlib
 import calendar
 import configparser
+import logging
 
 VALID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890./ "
 
@@ -119,7 +118,7 @@ class Vp():
         """
         sid = url[url.find("=")+1:]
         if (not self.__checkInput(sid)):
-            print("Authentification failed: input='{url}'"\
+            logging.debug ("Authentification failed: input='{url}'"\
                     .format(url=url))
             return (self.__translation['user']["AUTH_FAILED"])
         page = urllib.request.urlopen(self.__website.format(sid = sid))\
@@ -144,7 +143,7 @@ class Vp():
             prevUsername = self.__cursor.fetchone()
 
             if (prevUsername == None):
-                print("User authentificated userId={userId} username={username}"
+                logging.info("User authentificated userId={userId} username={username}"
                         .format(userId = userId, username = username))
 
                 sql_command = """
@@ -166,7 +165,7 @@ class Vp():
 
             else:
                 prevUsername = prevUsername[0]
-                print("User reauthentificated id={userId} ({name}->{newname})"\
+                logging.debug("User reauthentificated id={userId} ({name}->{newname})"\
                         .format(userId = userId, name = prevUsername, newname = username))
                 if (prevUsername != username):
                     sql_command == """
@@ -180,7 +179,7 @@ class Vp():
                 return (self.__translation["user"]["AUTH_SUCCESSFUL"])
 
         else:
-            print("User authentification failed id={userId} sid={sid}"\
+            logging.debug("User authentification failed id={userId} sid={sid}"\
                     .format(userId=userId, sid=sid))
             return (self.__translation["user"]["AUTH_FAILED"])
 
@@ -272,7 +271,7 @@ class Vp():
                 addedSubjects += elem[0]+" "+elem[1] + ", "
 
         self.__database.commit()
-        print("User subjects add userId="+str(userId)+" added="+str(added)\
+        logging.debug("User subjects add userId="+str(userId)+" added="+str(added)\
                 +" equal="+str(equal)+" failed="+str(failed))
         
         if (added == 0):
@@ -324,7 +323,7 @@ class Vp():
             removed += 1
         self.__database.commit()
 
-        print("User subjects rem userId={userId} removed={removed} failed={failed}"
+        logging.debug("User subjects rem userId={userId} removed={removed} failed={failed}"
             .format(userId = userId,
                 removed = removed,
                 failed = failed))
@@ -343,7 +342,7 @@ class Vp():
             WHERE userId = ?
                 AND course != ""
         """
-        print("User subjects del userId="+str(userId))
+        logging.debug("User subjects del userId="+str(userId))
         self.__cursor.execute(sql_command, (userId,))
         self.__database.commit()
         return (self.__translation["courses"]["REMOVED_ALL"])
@@ -629,7 +628,7 @@ class Vp():
         """
         try:
             self.__cursor.execute(sql_command, entry[0]+(entry[1],))
-            print("Updated vp: Added entry {date} {hour}. {course} {lesson}: {change}"
+            logging.info("Updated vp: Added entry {date} {hour}. {course} {lesson}: {change}"
                     .format(date = entry[0][0],
                         hour = entry[0][1],
                         course = entry[0][2],
@@ -669,7 +668,7 @@ class Vp():
             """
             self.__cursor.execute(sql_command,\
                     (entry[1], True, CHANGE_UPDATED)+entry[0])
-            print("Updated vp: Updated entry {date} {hour}. {course} {lesson} -> {change}"
+            logging.info("Updated vp: Updated entry {date} {hour}. {course} {lesson} -> {change}"
                     .format(date = entry[0][0],
                         hour = entry[0][1],
                         course = entry[0][2],
@@ -695,7 +694,7 @@ class Vp():
                 AND course = ?
                 AND lesson = ?
         """
-        print("Update vp: Removed {date} {hour}. {course} {lesson}"
+        logging.info("Update vp: Removed {date} {hour}. {course} {lesson}"
                 .format(date = entry[0],
                         hour = entry[1],
                         course = entry[2],
@@ -747,7 +746,7 @@ class Vp():
 
         self.__database.commit()
 
-        print("Update vp: Entries added="+str(addedEntries)\
+        logging.info("Update vp: Entries added="+str(addedEntries)\
                 +" updated="+str(updatedEntries)\
                 +" removed="+str(removedEntries)\
                 +" skipped="+str(skippedEntries)\
