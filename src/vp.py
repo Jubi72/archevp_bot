@@ -8,6 +8,7 @@ import hashlib
 import calendar
 import configparser
 import logging
+import codecs
 
 VALID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890./ "
 
@@ -34,7 +35,7 @@ class Vp():
         self.__firstUpdate = False
         self.__translation = configparser.ConfigParser()
         language = "data/language/" + language + ".txt"
-        self.__translation.read(language)
+        self.__translation.read_file(codecs.open(language, "r", "cp1252"))
         if (createDatabase):
             self.__firstUpdate = True
             self.__createDatabase()
