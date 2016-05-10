@@ -60,23 +60,38 @@ class Archebot(tp.Bot):
         vpdate   = self.__config['vp']['vpdate']
         language = self.__config['vp']['language']
         if "" in [website, sid, database, vpdate, language]:
-            logging.critical ("Error: One of the vp conf values is empty")
+            self.__logger.critical ("[bot] Error: One of the vp conf values is empty")
 
-        self.__vp = Vp(website, vpdate, sid, database, language)
+        self.__vp = Vp(website, vpdate, sid, database, language, self.__logger)
 
 
     def __initlog (self):
         """
         inits the log function
         """
+        # Set the level
         debugLevel = logging.INFO
         if self.__debug:
             debugLevel = logging.DEBUG
 
-        # Set the settings of the logging
-        logging.basicConfig(format='%(asctime)s|%(levelname)s|%(message)s',\
-                            filename=self.__logfile,\
-                            level=debugLevel)
+        # Create an instance of a logger
+        self.__logger = logging.getLogger(__name__)
+        self.__logger.setLevel(debugLevel)
+
+        # create file-handler
+        handler = logging.FileHandler(self.__logfile)
+        handler.setLevel(debugLevel)
+
+        # create a logging format for the file-handler
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        handler.setFormatter(formatter)
+
+        # Add the Handler to the logger
+        self.__logger.addHandler(handler)
+
+        # Add the Handler to the logger
+        self.__logger.addHandler(handler)
+
 
     def handle(self, msg):
         """
@@ -87,7 +102,7 @@ class Archebot(tp.Bot):
         u_id = msg[u'message'][u'from'][u'id'] # user-id = chat-id
         username = msg[u'message'][u'from'][u'username']
         debugText = text.replace("\\", "\\\\").replace("\n", "\\n")
-        logging.info (username, "("+str(u_id)+"):", debugText)
+        self.__logger.info ("[bot] " + username + "(" + str(u_id) + "):" + debugText)
 
         command = text.split(" ", 1)
         if len(command) == 1:
@@ -119,8 +134,8 @@ class Archebot(tp.Bot):
                 message += name
                 self.__bot.sendMessage(chat_id=u_id, text = message)
         except:
-            logging.critical ("Unexpected Error")
-            logging.critical (sys.exc_info()[0])
+            self.__logger.critical ("[bot] Unexpected Error")
+            self.__logger.critical (sys.exc_info()[0])
 
     def __sendHelp(self, u_id):
         response = self.__vp.getUserHelp(u_id)
@@ -195,4 +210,5 @@ class Archebot(tp.Bot):
         """
         post: all daily notifications are sent to the users
         """
+        pass
 

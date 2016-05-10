@@ -18,7 +18,7 @@ CHANGE_REMOVED = 2
 CHANGE_MESSAGES = ["ADDED", "UPDATED", "REMOVED"]
 
 class Vp():
-    def __init__(self, website, websiteVpDate, sid, database, language):
+    def __init__(self, website, websiteVpDate, sid, database, language, logger):
         """
         initialize Variables and the database
         """
@@ -38,6 +38,7 @@ class Vp():
         if (createDatabase):
             self.__firstUpdate = True
             self.__createDatabase()
+        self.__logger = logger
 
 
     def __checkInput(self, string):
@@ -107,20 +108,33 @@ class Vp():
         Send the user different help depending if they are registered
         """
         if (self.isAuthorised(userId)):
+            self.__logger.debug("[vp] USER help requested - registered id={userId}"\
+                        .format(userId=userId))
             return self.__translation['vp']['HELP_REGISTERED']
         else:
             return self.__translation['vp']['HELP_NEWBIE']
+            self.__logger.debug("[vp] USER help requested - newbie id={userId}"\
+                        .format(userId=userId))
 
 
     def checkUser(self, userId, url):
         """
         checks whether a user is valid and add this user to the database 
         """
-        sid = url[url.find("=")+1:]
-        if (not self.__checkInput(sid)):
-            logging.debug ("[vp] Authentification failed: input='{url}'"\
+        # Check if the input is correct
+        sidBegin = url.find("=")+1
+        if (sidBegin == len(url)):
+            self.__logger.debug ("[vp] USER Authentification failed: input='{url}'"\
                     .format(url=url))
             return (self.__translation['user']["AUTH_FAILED"])
+            
+        sid = url[sidBegin:]
+        # Check if the input has only valid chars
+        if (not self.__checkInput(sid)):
+            self.__logger.debug ("[vp] USER Authentification failed: input='{url}'"\
+                    .format(url=url))
+            return (self.__translation['user']["AUTH_FAILED"])
+
         page = urllib.request.urlopen(self.__website.format(sid = sid))\
                 .read().decode('cp1252')
         
@@ -143,7 +157,7 @@ class Vp():
             prevUsername = self.__cursor.fetchone()
 
             if (prevUsername == None):
-                logging.info("[vp] User authentificated userId={userId} username={username}"
+                self.__logger.info("[vp] USER authentificated userId={userId} username={username}"
                         .format(userId = userId, username = username))
 
                 sql_command = """
@@ -165,7 +179,7 @@ class Vp():
 
             else:
                 prevUsername = prevUsername[0]
-                logging.debug("[vp] User reauthentificated id={userId} ({name}->{newname})"\
+                self.__logger.debug("[vp] USER reauthentificated id={userId} ({name}->{newname})"\
                         .format(userId = userId, name = prevUsername, newname = username))
                 if (prevUsername != username):
                     sql_command == """
@@ -179,7 +193,7 @@ class Vp():
                 return (self.__translation["user"]["AUTH_SUCCESSFUL"])
 
         else:
-            logging.debug("[vp] User authentification failed id={userId} sid={sid}"\
+            self.__logger.debug("[vp] USER authentification failed id={userId} sid={sid}"\
                     .format(userId=userId, sid=sid))
             return (self.__translation["user"]["AUTH_FAILED"])
 
@@ -271,7 +285,7 @@ class Vp():
                 addedSubjects += elem[0]+" "+elem[1] + ", "
 
         self.__database.commit()
-        logging.debug("[vp] User subjects add userId="+str(userId)+" added="+str(added)\
+        self.__logger.debug("[vp] USER subjects add userId="+str(userId)+" added="+str(added)\
                 +" equal="+str(equal)+" failed="+str(failed))
         
         if (added == 0):
@@ -323,7 +337,7 @@ class Vp():
             removed += 1
         self.__database.commit()
 
-        logging.debug("[vp] User subjects rem userId={userId} removed={removed} failed={failed}"
+        self.__logger.debug("[vp] USER subjects rem userId={userId} removed={removed} failed={failed}"
             .format(userId = userId,
                 removed = removed,
                 failed = failed))
@@ -342,7 +356,7 @@ class Vp():
             WHERE userId = ?
                 AND course != ""
         """
-        logging.debug("[vp] User subjects del userId="+str(userId))
+        self.__logger.debug("[vp] USER subjects del userId="+str(userId))
         self.__cursor.execute(sql_command, (userId,))
         self.__database.commit()
         return (self.__translation["courses"]["REMOVED_ALL"])
@@ -628,7 +642,7 @@ class Vp():
         """
         try:
             self.__cursor.execute(sql_command, entry[0]+(entry[1],))
-            logging.info("[vp] Updated vp: Added entry {date} {hour}. {course} {lesson}: {change}"
+            self.__logger.info("[vp] UPDATE: Added entry {date} {hour}. {course} {lesson}: {change}"
                     .format(date = entry[0][0],
                         hour = entry[0][1],
                         course = entry[0][2],
@@ -668,7 +682,7 @@ class Vp():
             """
             self.__cursor.execute(sql_command,\
                     (entry[1], True, CHANGE_UPDATED)+entry[0])
-            logging.info("[vp] Updated entry: Updated entry {date} {hour}. {course} {lesson} -> {change}"
+            self.__logger.info("[vp] UPDATE: Updated entry {date} {hour}. {course} {lesson} -> {change}"
                     .format(date = entry[0][0],
                         hour = entry[0][1],
                         course = entry[0][2],
@@ -694,7 +708,7 @@ class Vp():
                 AND course = ?
                 AND lesson = ?
         """
-        logging.info("[vp] Update vp: Removed {date} {hour}. {course} {lesson}"
+        self.__logger.info("[vp] UPDATE: Removed entry {date} {hour}. {course} {lesson}"
                 .format(date = entry[0],
                         hour = entry[1],
                         course = entry[2],
@@ -748,7 +762,7 @@ class Vp():
 
         self.__database.commit()
 
-        logging.info("[vp] updated: Entries added="+str(addedEntries)\
+        self.__logger.info("[vp] UPDATE: Entries added="+str(addedEntries)\
                 +" updated="+str(updatedEntries)\
                 +" removed="+str(removedEntries)\
                 +" skipped="+str(skippedEntries)\
@@ -821,11 +835,11 @@ class Vp():
                 .format(sid=self.__sid)).read().decode("cp1252")
             vpDate = urllib.request.urlopen(self.__websiteVpDate).read()
         except:
-            print("[vp] Update: Error while loading vp website")
+            print("[vp] UPDATE: Error while loading vp website")
             return ([])
 
         if (not page):
-            print("[vp] Update: sid isn't correct")
+            print("[vp] UPDATE: sid isn't correct")
             return ([])
 
         # check if the date has changed
