@@ -13,11 +13,16 @@ def main():
     args = p.parse_args()
 
     archevp = Archebot(args.f)
-    archevp.message_loop()
+    lastUpdate = time.mktime(time.localtime())
     while True:
-        archevp.update()
-        archevp.notifications()
-        time.sleep(10)
+        archevp.response()
+        if lastUpdate + 60 < time.mktime(time.localtime()):
+            # "only" update the vp every minute
+            lastUpdate = time.mktime(time.localtime())
+            archevp.update()
+            archevp.notifications()
+
+        time.sleep(0.1) # be friendly to the cpu
 
 
 if __name__ == "__main__":

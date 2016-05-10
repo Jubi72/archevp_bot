@@ -4,14 +4,14 @@ from src.vp import Vp
 import logging
 import sys
 
-class Archebot(tp.Bot):
+class Archebot():
     """
     runs a bot wich can read the vertretungsplan and other things
     needed files: configuration file, answer file
     """
 
     # Initialization functions
-    def __init__ (self, configfile = "autoexec.cfg", *args, **kwargs):
+    def __init__ (self, configfile = "autoexec.cfg"):
         """
         initialize variables, set the token, curoff and the Bot
         """
@@ -19,10 +19,10 @@ class Archebot(tp.Bot):
         self.__config = configparser.ConfigParser()
         self.__config.read(configfile)
         self.__readConfig()
-        super().__init__(self.__token, *args, **kwargs)
 
         # Set the telegram-Bot variable
         self.__bot = tp.Bot(self.__token)
+        self.__msgOffset = 0
 
         # Init the logger
         self.__initlog()
@@ -93,6 +93,25 @@ class Archebot(tp.Bot):
         self.__logger.addHandler(handler)
 
 
+    def response(self):
+        """
+        post: response to all received messages
+        """
+        if not self.__msgOffset:
+            # Check if the program just started and we didn't got an offset for now
+            messages = self.__bot.getUpdates()
+            if not len(messages):
+                # no messages received
+                return
+            self.__msgOffset = messages[-1][u'update_id'] + 1
+            return
+
+        messages = self.__bot.getUpdates(self.__msgOffset)
+        for message in messages:
+            self.handle(message)
+            self.__msgOffset = message[u'update_id'] + 1
+
+
     def handle(self, msg):
         """
         handle the received messages
@@ -102,7 +121,7 @@ class Archebot(tp.Bot):
         u_id = msg[u'message'][u'from'][u'id'] # user-id = chat-id
         username = msg[u'message'][u'from'][u'username']
         debugText = text.replace("\\", "\\\\").replace("\n", "\\n")
-        self.__logger.info ("[bot] " + username + "(" + str(u_id) + "):" + debugText)
+        self.__logger.info ("[bot] " + username + " (" + str(u_id) + "):" + debugText)
 
         command = text.split(" ", 1)
         if len(command) == 1:
@@ -111,33 +130,30 @@ class Archebot(tp.Bot):
         if command[0][0] == "/":
             command[0] = command[0].replace("/", 1)
 
-        try:
-            if command[0] == "help":
-                self.__sendHelp(u_id)
-            elif command[0] == "vp":
-                self.__showVp(u_id)
-            elif command[0] == "info":
-                self.__showInfo(u_id)
-            elif command[0] == "url":
-                self.__setURL(u_id, command[1])
-            elif command[0] == "add":
-                self.__addSubj(u_id, command[1])
-            elif command[0] == "del":
-                self.__delSubj(u_id, command[1])
-            elif command[0] == "delme":
-                self.__delUser(u_id, command[1])
-            else:
-                message = "Hi, "
-                name = msg[u'message'][u'from'][u'first_name']
-                if not name:
-                    name = msg[u'message'][u'from'][u'username']
-                message += name
-                self.__bot.sendMessage(chat_id=u_id, text = message)
-        except:
-            self.__logger.critical ("[bot] Unexpected Error")
-            self.__logger.critical (sys.exc_info()[0])
+        # Execute the wanted command
+        if command[0] == "help":
+            self.__showHelp(u_id)
+        elif command[0] == "vp":
+            self.__showVp(u_id)
+        elif command[0] == "info":
+            self.__showInfo(u_id)
+        elif command[0] == "url":
+            self.__setURL(u_id, command[1])
+        elif command[0] == "add":
+            self.__addSubj(u_id, command[1])
+        elif command[0] == "del":
+            self.__delSubj(u_id, command[1])
+        elif command[0] == "delme":
+            self.__delUser(u_id, command[1])
+        else:
+            message = "Hi, "
+            name = msg[u'message'][u'from'][u'first_name']
+            if not name:
+                name = msg[u'message'][u'from'][u'username']
+            message += name
+            self.__bot.sendMessage(chat_id=u_id, text = message)
 
-    def __sendHelp(self, u_id):
+    def __showHelp(self, u_id):
         response = self.__vp.getUserHelp(u_id)
         self.__bot.sendMessage(chat_id = u_id, text = response)
 
@@ -155,8 +171,8 @@ class Archebot(tp.Bot):
         post: registered courses are sent to u_id user
               if user not registered error msg is sent
         """
-        response = self.__vp.getUserStatus(u_id)
-        self.__bot.sendInfo(chat_id = u_id, text = response)
+        response = self.__vp.getUserInfo(u_id)
+        self.__bot.sendMessage(chat_id = u_id, text = response)
 
     def __setURL (self, u_id, url):
         """
@@ -171,7 +187,7 @@ class Archebot(tp.Bot):
         pre:  msg is message sent by user in valid telepot message format
         post: subjects are added to our database
         """
-        response = self.__vp.setUserSubjects(u_id, subjects)
+        response = self.__vp.addUserSubjects(u_id, subjects)
         self.__bot.sendMessage(chat_id = u_id, text = response)
 
     def __delSubj (self, u_id, subjects):

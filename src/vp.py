@@ -33,7 +33,7 @@ class Vp():
         self.__websiteHash = ""
         self.__firstUpdate = False
         self.__translation = configparser.ConfigParser()
-        language = "data/language" + language + ".txt"
+        language = "data/language/" + language + ".txt"
         self.__translation.read(language)
         if (createDatabase):
             self.__firstUpdate = True
@@ -734,8 +734,6 @@ class Vp():
         failedEntries = 0
         
         for entry in newEntries:
-            # Change encoding to utf-8
-            entry[1] = entry[1].encode()
             if (entry in oldEntries):
                 # Already in database
                 oldEntries.remove(entry)
