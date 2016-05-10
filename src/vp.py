@@ -110,11 +110,11 @@ class Vp():
         if (self.isAuthorised(userId)):
             self.__logger.debug("[vp] USER help requested - registered id={userId}"\
                         .format(userId=userId))
-            return self.__translation['vp']['HELP_REGISTERED']
+            return self.__translation['user']['HELP_REGISTERED']
         else:
-            return self.__translation['vp']['HELP_NEWBIE']
             self.__logger.debug("[vp] USER help requested - newbie id={userId}"\
                         .format(userId=userId))
+            return self.__translation['user']['HELP_NEWBIE']
 
 
     def checkUser(self, userId, url):
