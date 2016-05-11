@@ -35,7 +35,7 @@ class Vp():
         self.__firstUpdate = False
         self.__translation = configparser.ConfigParser()
         language = "data/language/" + language + ".txt"
-        self.__translation.read_file(codecs.open(language, "r", "cp1252"))
+        self.__translation.read_file(codecs.open(language, "r", "utf-8"))
         if (createDatabase):
             self.__firstUpdate = True
             self.__createDatabase()
@@ -122,6 +122,10 @@ class Vp():
         """
         checks whether a user is valid and add this user to the database 
         """
+        # check if the user is already authentificated
+        if (self.isAuthorised(userId)):
+            return (self.__translation['user']['AUTH_ALREADY'])
+
         # Check if the input is correct
         sidBegin = url.find("=")+1
         if (sidBegin == len(url)):
@@ -283,7 +287,10 @@ class Vp():
             else:
                 self.__cursor.execute(sql_command, (userId,)+elem)
                 added += 1
-                addedSubjects += elem[0]+" "+elem[1] + ", "
+                addedSubjects += elem[0]
+                if (elem[1][:-1]):
+                    addedSubjects += " " + elem[1][:-1]
+                    addedSubjects += ", "
 
         self.__database.commit()
         self.__logger.debug("[vp] USER subjects add userId="+str(userId)+" added="+str(added)\
@@ -381,7 +388,7 @@ class Vp():
         subjects = ""
         self.__cursor.execute(sql_command, (userId,))
         for (subject, lesson) in self.__cursor.fetchall():
-            subjects += "\n * " + subject + " " + lesson[:-1]
+            subjects += "\n  * " + subject + " " + lesson[:-1]
 
         return (self.__translation["courses"]["CURRENT"]
                     .format(courses = subjects))

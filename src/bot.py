@@ -106,7 +106,10 @@ class Archebot():
             self.__msgOffset = messages[-1][u'update_id'] + 1
             return
 
-        messages = self.__bot.getUpdates(self.__msgOffset)
+        try:
+            messages = self.__bot.getUpdates(self.__msgOffset)
+        except:
+            return
         for message in messages:
             self.handle(message)
             self.__msgOffset = message[u'update_id'] + 1
@@ -128,12 +131,12 @@ class Archebot():
             command.append("")
 
         if command[0][0] == "/":
-            command[0] = command[0].replace("/", 1)
+            command[0] = command[0].replace("/", "", 1)
 
         # Execute the wanted command
         if command[0] == "help":
             self.__showHelp(u_id)
-        elif command[0] == "vp":
+        elif command[0] == "vp" or command[0] == "status":
             self.__showVp(u_id)
         elif command[0] == "info":
             self.__showInfo(u_id)

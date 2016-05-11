@@ -5,6 +5,7 @@
 AUTH_FAILED:     Authentifizierung fehlgeschlagen
 AUTH_SUCCESSFUL: Authentifizierung erfolgreich
 AUTH_REQUIRED:   Authentifizierung erforderlich
+AUTH_ALREADY:    Bereits authentifiziert
 USER_DELETED:    Du bist nun aus unserer Datenbank gelöscht. Schönen Tag noch :-)
 USER_DELETE_UID: Sei vorsichtig!
                  Wenn du wirklich deinen Benutzernamen aus unserer Datenbank löschen und
