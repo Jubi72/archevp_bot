@@ -19,9 +19,11 @@ class Archebot():
         self.__config = configparser.ConfigParser()
         self.__config.read(configfile)
         self.__readConfig()
+        print("Successfully read config file at " + configfile)
 
         # Set the telegram-Bot variable
         self.__bot = tp.Bot(self.__token)
+        print("Successfully initialised Bot")
         self.__msgOffset = 0
 
         # Init the logger
@@ -64,6 +66,8 @@ class Archebot():
 
         self.__vp = Vp(website, vpdate, sid, database, language, self.__logger)
 
+        print("Successfully initialised database")
+
 
     def __initlog (self):
         """
@@ -104,6 +108,7 @@ class Archebot():
                 # no messages received
                 return
             self.__msgOffset = messages[-1][u'update_id'] + 1
+            print("Set offset to " + str(self.__msgOffset))
             return
 
         try:
@@ -123,6 +128,7 @@ class Archebot():
         text = msg[u'message'][u'text'] # message the bot received
         u_id = msg[u'message'][u'from'][u'id'] # user-id = chat-id
         username = msg[u'message'][u'from'][u'username']
+        print("Handling message from " + username)
         debugText = text.replace("\\", "\\\\").replace("\n", "\\n")
         self.__logger.info ("[bot] " + username + " (" + str(u_id) + "):" + debugText)
 
@@ -155,6 +161,8 @@ class Archebot():
                 name = msg[u'message'][u'from'][u'username']
             message += name
             self.__bot.sendMessage(chat_id=u_id, text = message)
+
+        print("Handled " + command[0] + " command from " + username)
 
     def __showHelp(self, u_id):
         response = self.__vp.getUserHelp(u_id)
